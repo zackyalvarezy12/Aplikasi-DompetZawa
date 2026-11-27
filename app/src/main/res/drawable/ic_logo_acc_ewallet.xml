@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#EDE9FE"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Phone body -->
+    <path
+        android:fillColor="#6D28D9"
+        android:pathData="M15,10 L33,10 C34.6,10 36,11.4 36,13 L36,35 C36,36.6 34.6,38 33,38 L15,38 C13.4,38 12,36.6 12,35 L12,13 C12,11.4 13.4,10 15,10 Z" />
+    <!-- Screen -->
+    <path
+        android:fillColor="#DDD6FE"
+        android:pathData="M15,14 L33,14 L33,33 L15,33 Z" />
+    <!-- Lightning bolt / instant pay -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M25,16 L19,24 L23.5,24 L22,31 L29,22 L24.5,22 Z" />
+</vector>

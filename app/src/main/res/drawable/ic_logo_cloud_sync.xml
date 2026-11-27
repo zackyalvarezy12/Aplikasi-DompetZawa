@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#E0F2FE"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Cloud -->
+    <path
+        android:fillColor="#0EA5E9"
+        android:pathData="M16,32 L34,32 C37.3,32 40,29.3 40,26 C40,22.9 37.7,20.4 34.7,20.1 C33.7,15.5 29.6,12 24.5,12 C18.8,12 14.2,16.5 14,22.1 C10.6,22.6 8,25.5 8,29 C8,30.7 9.3,32 11,32 Z" />
+    <!-- Sync arrows -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M18,22 A6,6 0 0,1 29,20 M30,26 A6,6 0 0,1 19,28" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M27,17 L31,21 L26,22 Z M21,31 L17,27 L22,26 Z" />
+</vector>

@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#DCFCE7"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Outer ring -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M24,10 A14,14 0 1,1 23.99,10 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,14.5 A9.5,9.5 0 1,1 23.99,14.5 Z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M24,19 A5,5 0 1,1 23.99,19 Z" />
+    <!-- Arrow dart -->
+    <path
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M24,24 L37,11" />
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M34,9 L39,9 L39,14 L35,13 Z" />
+</vector>

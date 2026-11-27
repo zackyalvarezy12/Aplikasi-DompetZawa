@@ -1,0 +1,73 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Background badge -->
+    <path
+        android:fillColor="#ECFDF5"
+        android:pathData="M24,2 A22,22 0 1,1 23.99,2 Z" />
+    <!-- Cat ears -->
+    <path
+        android:fillColor="#6EE7B7"
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M11,20 L10,9 L20,15 Z" />
+    <path
+        android:fillColor="#6EE7B7"
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M37,20 L38,9 L28,15 Z" />
+    <!-- Inner ears -->
+    <path
+        android:fillColor="#F9A8D4"
+        android:pathData="M13,17 L12.5,12.5 L17,15 Z" />
+    <path
+        android:fillColor="#F9A8D4"
+        android:pathData="M35,17 L35.5,12.5 L31,15 Z" />
+    <!-- Chubby head -->
+    <path
+        android:fillColor="#A7F3D0"
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2"
+        android:pathData="M8,26 C8,17.5 15,13 24,13 C33,13 40,17.5 40,26 C40,34.5 33,39 24,39 C15,39 8,34.5 8,26 Z" />
+    <!-- Coin slot -->
+    <path
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M20,17 L28,17" />
+    <!-- Happy eyes -->
+    <path
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M15,24 Q17.5,21.5 20,24" />
+    <path
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M28,24 Q30.5,21.5 33,24" />
+    <!-- Blush -->
+    <path
+        android:fillColor="#F472B6"
+        android:fillAlpha="0.65"
+        android:pathData="M14,28.5 A2.5,2.5 0 1,1 13.99,28.5 Z" />
+    <path
+        android:fillColor="#F472B6"
+        android:fillAlpha="0.65"
+        android:pathData="M34,28.5 A2.5,2.5 0 1,1 33.99,28.5 Z" />
+    <!-- Gold coin -->
+    <path
+        android:fillColor="#FBBF24"
+        android:strokeColor="#1E293B"
+        android:strokeWidth="1.8"
+        android:pathData="M24,31 A6.5,6.5 0 1,1 23.99,31 Z" />
+    <path
+        android:strokeColor="#92400E"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M24,34.5 L24,40.5" />
+</vector>

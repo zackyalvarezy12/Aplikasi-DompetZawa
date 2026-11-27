@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#DCFCE7"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Coin pouch / stack -->
+    <path
+        android:fillColor="#16A34A"
+        android:pathData="M14,22 C14,16 34,16 34,22 L36,33 C36,36 31,37 24,37 C17,37 12,36 12,33 Z" />
+    <path
+        android:fillColor="#15803D"
+        android:pathData="M18,12 L30,12 L27,17 L21,17 Z" />
+    <!-- Gold coin badge -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M24,22 A5.5,5.5 0 1,1 23.99,22 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M24,25 L24,30 M21.5,27.5 L26.5,27.5" />
+</vector>

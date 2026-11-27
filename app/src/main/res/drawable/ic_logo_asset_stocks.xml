@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#D1FAE5"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Bars -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M11,29 L16,29 L16,36 L11,36 Z M19,24 L24,24 L24,36 L19,36 Z M27,19 L32,19 L32,36 L27,36 Z" />
+    <!-- Trend line + arrow -->
+    <path
+        android:strokeColor="#047857"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M11,24 L19,18 L25,21 L35,12" />
+    <path
+        android:fillColor="#047857"
+        android:pathData="M30,11 L37,11 L37,18 Z" />
+</vector>

@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#DBEAFE"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Roof -->
+    <path
+        android:fillColor="#1D4ED8"
+        android:pathData="M10,19 L24,10 L38,19 Z" />
+    <!-- Pillars -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M13,21 L17,21 L17,33 L13,33 Z M22,21 L26,21 L26,33 L22,33 Z M31,21 L35,21 L35,33 L31,33 Z" />
+    <!-- Base -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M10,33 L38,33 L38,37 L10,37 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M24,14 A2,2 0 1,1 23.99,14 Z" />
+</vector>

@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#E0E7FF"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Ticket / Cinema star badge -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M10,16 L38,16 L38,21 A3,3 0 0,0 38,27 L38,32 L10,32 L10,27 A3,3 0 0,0 10,21 Z" />
+    <!-- Star -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M24,18 L25.8,22.2 L30.3,22.6 L26.9,25.6 L27.9,30 L24,27.6 L20.1,30 L21.1,25.6 L17.7,22.6 L22.2,22.2 Z" />
+</vector>

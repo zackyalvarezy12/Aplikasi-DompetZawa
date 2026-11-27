@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#CCFBF1"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Vault box -->
+    <path
+        android:fillColor="#0D9488"
+        android:pathData="M11,14 L37,14 C38.1,14 39,14.9 39,16 L39,34 C39,35.1 38.1,36 37,36 L11,36 C9.9,36 9,35.1 9,34 L9,16 C9,14.9 9.9,14 11,14 Z" />
+    <!-- Dial -->
+    <path
+        android:fillColor="#FBBF24"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:pathData="M24,19 A6,6 0 1,1 23.99,19 Z" />
+    <path
+        android:fillColor="#0F766E"
+        android:pathData="M24,23 A2,2 0 1,1 23.99,23 Z" />
+</vector>

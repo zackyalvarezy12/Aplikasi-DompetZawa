@@ -1,0 +1,6 @@
+{
+  "name": "Dompet Zawa",
+  "description": "Aplikasi Manajemen Keuangan Pribadi, Keluarga, dan Grup Hybrid Local-First dengan dukungan offline penuh dan sinkronisasi real-time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

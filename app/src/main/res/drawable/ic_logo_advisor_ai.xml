@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#F3E8FF"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Cute robot head -->
+    <path
+        android:strokeColor="#7C3AED"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M24,10 L24,15" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M24,7.5 A2.5,2.5 0 1,1 23.99,7.5 Z" />
+    <path
+        android:fillColor="#7C3AED"
+        android:pathData="M12,16 L36,16 C37.6,16 39,17.4 39,19 L39,32 C39,33.6 37.6,35 36,35 L12,35 C10.4,35 9,33.6 9,32 L9,19 C9,17.4 10.4,16 12,16 Z" />
+    <!-- Visor -->
+    <path
+        android:fillColor="#DDD6FE"
+        android:pathData="M13,20 L35,20 L35,29 L13,29 Z" />
+    <!-- Friendly eyes -->
+    <path
+        android:fillColor="#4C1D95"
+        android:pathData="M19,22.5 A2.2,2.2 0 1,1 18.99,22.5 Z M29,22.5 A2.2,2.2 0 1,1 28.99,22.5 Z" />
+    <!-- Smile -->
+    <path
+        android:strokeColor="#4C1D95"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M21,27 Q24,29 27,27" />
+</vector>

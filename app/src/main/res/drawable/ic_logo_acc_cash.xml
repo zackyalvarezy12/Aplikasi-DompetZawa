@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#D1FAE5"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Back bill -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M11,15 L37,15 L37,30 L11,30 Z" />
+    <!-- Front bill -->
+    <path
+        android:fillColor="#059669"
+        android:pathData="M9,19 L35,19 L35,34 L9,34 Z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M22,22.5 A4,4 0 1,1 21.99,22.5 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,22 L15,22 L15,24 L12,24 Z M29,29 L32,29 L32,31 L29,31 Z" />
+</vector>

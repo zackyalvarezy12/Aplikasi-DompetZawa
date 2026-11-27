@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FFEDD5"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Cup -->
+    <path
+        android:fillColor="#EA580C"
+        android:pathData="M13,20 L31,20 L31,30 C31,34 27,36 22,36 C17,36 13,34 13,30 Z" />
+    <!-- Handle -->
+    <path
+        android:strokeColor="#EA580C"
+        android:strokeWidth="2.5"
+        android:pathData="M31,22 C35,22 36,28 31,29" />
+    <!-- Steam -->
+    <path
+        android:strokeColor="#FB923C"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M18,16 Q16.5,13 18.5,11 M23,16 Q21.5,13 23.5,11 M28,16 Q26.5,13 28.5,11" />
+</vector>

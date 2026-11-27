@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FCE7F3"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Person left -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M16,17 A4.5,4.5 0 1,1 15.99,17 Z" />
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M9,34 C9,28.5 12,26 16,26 C20,26 23,28.5 23,34 Z" />
+    <!-- Person right -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M32,17 A4.5,4.5 0 1,1 31.99,17 Z" />
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M25,34 C25,28.5 28,26 32,26 C36,26 39,28.5 39,34 Z" />
+    <!-- Shared gold coin in center -->
+    <path
+        android:fillColor="#FBBF24"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:pathData="M24,25 A5.5,5.5 0 1,1 23.99,25 Z" />
+    <path
+        android:strokeColor="#92400E"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M24,28 L24,33 M22,30.5 L26,30.5" />
+</vector>

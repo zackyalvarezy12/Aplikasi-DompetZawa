@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M24,3 A21,21 0 1,1 23.99,3 Z" />
+    <!-- Receipt -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#D97706"
+        android:strokeWidth="2"
+        android:pathData="M14,11 L34,11 L34,37 L30,34 L26,37 L22,34 L18,37 L14,34 Z" />
+    <!-- Bolt -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M26,15 L19,24 L23.5,24 L21.5,31 L29,22 L24.5,22 Z" />
+</vector>

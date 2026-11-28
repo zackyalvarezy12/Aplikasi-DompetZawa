@@ -1,0 +1,450 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function hasValidTimestampsOnCreate(data) {
+      return data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function hasImmutableCreateMeta(data, oldData) {
+      return data.userId == oldData.userId &&
+             data.createdAt == oldData.createdAt &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 160)) &&
+             data.avatarInitials is string && data.avatarInitials.size() >= 1 && data.avatarInitials.size() <= 4 &&
+             data.avatarColorHex is int &&
+             (!('themePreset' in data) || (data.themePreset is string && data.themePreset.size() <= 40)) &&
+             (!('biometricEnabled' in data) || data.biometricEnabled is bool) &&
+             (!('autoSalaryEnabled' in data) || data.autoSalaryEnabled is bool) &&
+             (!('monthlyBaseSalary' in data) || (data.monthlyBaseSalary is int && data.monthlyBaseSalary >= 0)) &&
+             (!('salaryPaydayDay' in data) || (data.salaryPaydayDay is int && data.salaryPaydayDay >= 1 && data.salaryPaydayDay <= 31)) &&
+             (!('salaryWorkingDays' in data) || (data.salaryWorkingDays is int && data.salaryWorkingDays >= 1 && data.salaryWorkingDays <= 31));
+    }
+
+    function isValidWorkspace(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.type in ['PERSONAL', 'SHARED'] &&
+             (!('inviteCode' in data) || (data.inviteCode is string && data.inviteCode.size() <= 16)) &&
+             data.currency is string && data.currency.size() >= 1 && data.currency.size() <= 8;
+    }
+
+    function isValidAccount(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.type in ['CASH', 'BANK', 'EWALLET', 'CREDIT_CARD', 'DEPOSIT', 'INVESTMENT'] &&
+             data.balance is int &&
+             (!('creditLimit' in data) || (data.creditLimit is int && data.creditLimit >= 0)) &&
+             (!('billingDay' in data) || (data.billingDay is int && data.billingDay >= 1 && data.billingDay <= 31)) &&
+             (!('dueDay' in data) || (data.dueDay is int && data.dueDay >= 1 && data.dueDay <= 31)) &&
+             (!('institutionName' in data) || (data.institutionName is string && data.institutionName.size() <= 80)) &&
+             (!('colorHex' in data) || data.colorHex is int);
+    }
+
+    function isValidCategory(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.type in ['INCOME', 'EXPENSE', 'TRANSFER'] &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 40 &&
+             (!('colorHex' in data) || data.colorHex is int);
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.type in ['INCOME', 'EXPENSE', 'TRANSFER', 'SPLIT', 'REFUND'] &&
+             data.amount is int && data.amount >= 0 &&
+             data.accountId is string && data.accountId.size() >= 1 && data.accountId.size() <= 128 &&
+             (!('toAccountId' in data) || (data.toAccountId is string && data.toAccountId.size() <= 128)) &&
+             (!('adminFee' in data) || (data.adminFee is int && data.adminFee >= 0)) &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 500)) &&
+             (!('tags' in data) || (data.tags is string && data.tags.size() <= 200)) &&
+             data.dateMillis is int && data.dateMillis >= 0 &&
+             data.createdByMemberId is string && data.createdByMemberId.size() >= 1 && data.createdByMemberId.size() <= 128 &&
+             data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 80;
+    }
+
+    function isValidBudget(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 128 &&
+             data.monthYear is string && data.monthYear.size() >= 4 && data.monthYear.size() <= 12 &&
+             data.limitAmount is int && data.limitAmount >= 0 &&
+             data.rolloverAmount is int && data.rolloverAmount >= 0 &&
+             data.rolloverEnabled is bool;
+    }
+
+    function isValidRecurringRule(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.amount is int && data.amount >= 0 &&
+             data.type in ['INCOME', 'EXPENSE'] &&
+             data.accountId is string && data.accountId.size() >= 1 && data.accountId.size() <= 128 &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 128 &&
+             data.frequency in ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] &&
+             data.nextDueDateMillis is int && data.nextDueDateMillis >= 0 &&
+             data.active is bool &&
+             data.reminderEnabled is bool &&
+             (!('lastPaidDateMillis' in data) || (data.lastPaidDateMillis is int && data.lastPaidDateMillis >= 0));
+    }
+
+    function isValidDebtLoan(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.kind in ['DEBT', 'LOAN'] &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             (!('counterparty' in data) || (data.counterparty is string && data.counterparty.size() <= 120)) &&
+             data.principalAmount is int && data.principalAmount >= 0 &&
+             data.remainingAmount is int && data.remainingAmount >= 0 &&
+             (!('interestRateAnnual' in data) || (data.interestRateAnnual is number && data.interestRateAnnual >= 0)) &&
+             (!('minimumMonthlyPayment' in data) || (data.minimumMonthlyPayment is int && data.minimumMonthlyPayment >= 0)) &&
+             (!('dueDateMillis' in data) || (data.dueDateMillis is int && data.dueDateMillis >= 0)) &&
+             data.paidOff is bool;
+    }
+
+    function isValidGoal(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.targetAmount is int && data.targetAmount >= 0 &&
+             data.currentAmount is int && data.currentAmount >= 0 &&
+             (!('targetDateMillis' in data) || (data.targetDateMillis is int && data.targetDateMillis >= 0)) &&
+             (!('monthlyContribution' in data) || (data.monthlyContribution is int && data.monthlyContribution >= 0)) &&
+             (!('iconKey' in data) || (data.iconKey is string && data.iconKey.size() <= 40)) &&
+             (!('contributorSummary' in data) || (data.contributorSummary is string && data.contributorSummary.size() <= 500));
+    }
+
+    function isValidAsset(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.assetClass is string && data.assetClass.size() >= 1 && data.assetClass.size() <= 40 &&
+             data.quantity is number && data.quantity >= 0 &&
+             (!('unitLabel' in data) || (data.unitLabel is string && data.unitLabel.size() <= 24)) &&
+             data.unitPrice is int && data.unitPrice >= 0 &&
+             data.currentValue is int && data.currentValue >= 0 &&
+             data.purchaseValue is int && data.purchaseValue >= 0;
+    }
+
+    function isValidAuditLog(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+             data.actorMemberId is string && data.actorMemberId.size() >= 1 && data.actorMemberId.size() <= 128 &&
+             data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 80 &&
+             data.action is string && data.action.size() >= 1 && data.action.size() <= 80 &&
+             (!('detail' in data) || (data.detail is string && data.detail.size() <= 300)) &&
+             data.eventTimeMillis is int && data.eventTimeMillis >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'avatarInitials', 'avatarColorHex', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'email', 'avatarInitials', 'avatarColorHex',
+                         'themePreset', 'biometricEnabled', 'autoSalaryEnabled', 'monthlyBaseSalary',
+                         'salaryPaydayDay', 'salaryWorkingDays', 'createdAt', 'updatedAt'
+                       ]) &&
+                       hasValidTimestampsOnCreate(incoming()) &&
+                       isValidUserProfile(incoming());
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       hasImmutableCreateMeta(incoming(), existing()) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'avatarInitials', 'avatarColorHex',
+                         'themePreset', 'biometricEnabled', 'autoSalaryEnabled', 'monthlyBaseSalary',
+                         'salaryPaydayDay', 'salaryWorkingDays', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /workspaces/{workspaceId} {
+        allow get: if isOwner(userId) && isValidId(workspaceId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(workspaceId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'name', 'type', 'currency', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'type', 'inviteCode', 'currency', 'createdAt', 'updatedAt']) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidWorkspace(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(workspaceId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidWorkspace(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'inviteCode', 'currency', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(workspaceId);
+      }
+
+      match /accounts/{accountId} {
+        allow get: if isOwner(userId) && isValidId(accountId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(accountId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'workspaceId', 'name', 'type', 'balance', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'name', 'type', 'balance', 'creditLimit',
+                           'billingDay', 'dueDay', 'institutionName', 'colorHex', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidAccount(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(accountId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidAccount(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'name', 'type', 'balance', 'creditLimit',
+                           'billingDay', 'dueDay', 'institutionName', 'colorHex', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(accountId);
+      }
+
+      match /categories/{categoryId} {
+        allow get: if isOwner(userId) && isValidId(categoryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(categoryId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'workspaceId', 'name', 'type', 'iconKey', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'workspaceId', 'name', 'type', 'iconKey', 'colorHex', 'createdAt', 'updatedAt']) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidCategory(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(categoryId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidCategory(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['workspaceId', 'name', 'type', 'iconKey', 'colorHex', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(categoryId);
+      }
+
+      match /transactions/{txId} {
+        allow get: if isOwner(userId) && isValidId(txId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(txId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'type', 'amount', 'accountId', 'categoryId',
+                           'title', 'dateMillis', 'createdByMemberId', 'createdByName', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'type', 'amount', 'accountId', 'toAccountId',
+                           'adminFee', 'categoryId', 'title', 'note', 'tags', 'dateMillis',
+                           'createdByMemberId', 'createdByName', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidTransaction(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(txId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidTransaction(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'type', 'amount', 'accountId', 'toAccountId',
+                           'adminFee', 'categoryId', 'title', 'note', 'tags', 'dateMillis',
+                           'createdByMemberId', 'createdByName', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(txId);
+      }
+
+      match /budgets/{budgetId} {
+        allow get: if isOwner(userId) && isValidId(budgetId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(budgetId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'categoryId', 'monthYear', 'limitAmount',
+                           'rolloverAmount', 'rolloverEnabled', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'categoryId', 'monthYear', 'limitAmount',
+                           'rolloverAmount', 'rolloverEnabled', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidBudget(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(budgetId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidBudget(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'categoryId', 'monthYear', 'limitAmount',
+                           'rolloverAmount', 'rolloverEnabled', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(budgetId);
+      }
+
+      match /recurring_rules/{ruleId} {
+        allow get: if isOwner(userId) && isValidId(ruleId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(ruleId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'title', 'amount', 'type', 'accountId',
+                           'categoryId', 'frequency', 'nextDueDateMillis', 'active', 'reminderEnabled',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'title', 'amount', 'type', 'accountId',
+                           'categoryId', 'frequency', 'nextDueDateMillis', 'active', 'reminderEnabled',
+                           'lastPaidDateMillis', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidRecurringRule(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(ruleId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidRecurringRule(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'title', 'amount', 'type', 'accountId',
+                           'categoryId', 'frequency', 'nextDueDateMillis', 'active', 'reminderEnabled',
+                           'lastPaidDateMillis', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(ruleId);
+      }
+
+      match /debts_loans/{debtId} {
+        allow get: if isOwner(userId) && isValidId(debtId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(debtId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'kind', 'title', 'principalAmount',
+                           'remainingAmount', 'paidOff', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'kind', 'title', 'counterparty', 'principalAmount',
+                           'remainingAmount', 'interestRateAnnual', 'minimumMonthlyPayment',
+                           'dueDateMillis', 'paidOff', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidDebtLoan(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(debtId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidDebtLoan(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'kind', 'title', 'counterparty', 'principalAmount',
+                           'remainingAmount', 'interestRateAnnual', 'minimumMonthlyPayment',
+                           'dueDateMillis', 'paidOff', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(debtId);
+      }
+
+      match /goals/{goalId} {
+        allow get: if isOwner(userId) && isValidId(goalId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(goalId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'title', 'targetAmount', 'currentAmount', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'title', 'targetAmount', 'currentAmount',
+                           'targetDateMillis', 'monthlyContribution', 'iconKey', 'contributorSummary',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidGoal(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(goalId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidGoal(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'title', 'targetAmount', 'currentAmount',
+                           'targetDateMillis', 'monthlyContribution', 'iconKey', 'contributorSummary', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(goalId);
+      }
+
+      match /assets/{assetId} {
+        allow get: if isOwner(userId) && isValidId(assetId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(assetId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'name', 'assetClass', 'quantity',
+                           'unitPrice', 'currentValue', 'purchaseValue', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'name', 'assetClass', 'quantity', 'unitLabel',
+                           'unitPrice', 'currentValue', 'purchaseValue', 'createdAt', 'updatedAt'
+                         ]) &&
+                         hasValidTimestampsOnCreate(incoming()) &&
+                         isValidAsset(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(assetId) &&
+                         hasImmutableCreateMeta(incoming(), existing()) &&
+                         isValidAsset(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'workspaceId', 'name', 'assetClass', 'quantity', 'unitLabel',
+                           'unitPrice', 'currentValue', 'purchaseValue', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(assetId);
+      }
+
+      match /audit_logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(logId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'workspaceId', 'actorMemberId', 'actorName',
+                           'action', 'eventTimeMillis', 'createdAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'workspaceId', 'actorMemberId', 'actorName',
+                           'action', 'detail', 'eventTimeMillis', 'createdAt'
+                         ]) &&
+                         isValidAuditLog(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(logId);
+      }
+    }
+  }
+}

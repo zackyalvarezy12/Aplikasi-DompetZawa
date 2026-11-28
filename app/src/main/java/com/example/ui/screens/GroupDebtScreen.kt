@@ -4,17 +4,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.local.DebtLoanEntity
 import com.example.data.local.GoalEntity
+import com.example.data.local.SplitBillEntity
 import com.example.domain.CurrencyFormatter
 import com.example.domain.DebtPayoffSimulator
 import com.example.domain.SimplifiedSettlement
@@ -33,23 +42,32 @@ import kotlin.math.roundToInt
 @Composable
 fun GroupDebtScreen(
     state: MainUiState,
-    onSaveDebtLoan: (kind: String, title: String, counterparty: String, principal: Long, apr: Double, minPay: Long) -> Unit,
+    onSaveDebtLoan: (existingId: String?, kind: String, title: String, counterparty: String, principal: Long, remainingAmount: Long?, apr: Double, minPay: Long) -> Unit,
+    onDeleteDebtLoan: (DebtLoanEntity) -> Unit,
     onPayDebtInstallment: (DebtLoanEntity, Long, String) -> Unit,
-    onSaveGoal: (title: String, target: Long, monthly: Long, monthsAhead: Int) -> Unit,
+    onSaveGoal: (existingId: String?, title: String, target: Long, currentAmount: Long, monthly: Long, monthsAhead: Int) -> Unit,
+    onDeleteGoal: (GoalEntity) -> Unit,
     onContributeGoal: (GoalEntity, Long, String) -> Unit,
     onCreateSplitBill: (title: String, total: Long, paidByMemberId: String, participantIds: List<String>) -> Unit,
+    onDeleteSplitBill: (SplitBillEntity) -> Unit,
     onSettleTransfer: (SimplifiedSettlement) -> Unit,
+    onOpenWorkspaceInvite: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val stealth = state.settings.isStealthMode
-    var subTab by rememberSaveable { mutableStateOf(0) } // 0: Utang & Simulator, 1: Target Tabungan, 2: Split Bill
-    val subTabLabels = remember { listOf("Utang & Simulator", "Target Dana", "Split Bill") }
+    var subTab by rememberSaveable { mutableStateOf(0) } // 0: Utang & Cicilan, 1: Target Tabungan, 2: Patungan
+    val subTabLabels = remember { listOf("Utang & Cicilan", "Target Tabungan", "Patungan") }
 
-    var showAddDebt by remember { mutableStateOf(false) }
+    var debtEditorTarget by remember { mutableStateOf<Pair<Boolean, DebtLoanEntity?>?>(null) }
+    var deleteDebtConfirm by remember { mutableStateOf<DebtLoanEntity?>(null) }
     var payInstallmentTarget by remember { mutableStateOf<DebtLoanEntity?>(null) }
-    var showAddGoal by remember { mutableStateOf(false) }
+
+    var goalEditorTarget by remember { mutableStateOf<Pair<Boolean, GoalEntity?>?>(null) }
+    var deleteGoalConfirm by remember { mutableStateOf<GoalEntity?>(null) }
     var contributeTarget by remember { mutableStateOf<GoalEntity?>(null) }
+
     var showAddSplit by remember { mutableStateOf(false) }
+    var deleteSplitConfirm by remember { mutableStateOf<SplitBillEntity?>(null) }
 
     Column(modifier = modifier.fillMaxSize()) {
         SingleChoiceSegmentedButtonRow(
@@ -89,12 +107,12 @@ fun GroupDebtScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     SvgLogo(resId = R.drawable.ic_logo_debt_shield, contentDescription = null, size = 34.dp)
-                                    Text("Simulator Pelunasan: Snowball vs Avalanche", style = MaterialTheme.typography.titleMedium)
+                                    Text("Cara Cepat Melunasi Utang", style = MaterialTheme.typography.titleMedium)
                                 }
                                 OutlinedTextField(
                                     value = extraPaymentStr,
                                     onValueChange = { extraPaymentStr = it.filter(Char::isDigit) },
-                                    label = { Text("Dana Ekstra Pelunasan / Bulan (Rp)") },
+                                    label = { Text("Tambahan Bayar Utang / Bulan (Rp)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
@@ -105,8 +123,8 @@ fun GroupDebtScreen(
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
-                                            Text("Debt Snowball", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                            Text("Nominal terkecil dulu", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f))
+                                            Text("Mulai Utang Terkecil", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                            Text("Nominal paling kecil dulu", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f))
                                             Spacer(Modifier.height(4.dp))
                                             Text("${comparison.snowball.monthsToDebtFree} Bulan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                             Text("Bunga: ${CurrencyFormatter.formatCompactIdr(comparison.snowball.totalInterestPaid, stealth)}", style = MoneySmallStyle, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f))
@@ -117,8 +135,8 @@ fun GroupDebtScreen(
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
-                                            Text("Debt Avalanche", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                            Text("Bunga tertinggi dulu", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
+                                            Text("Mulai Bunga Tertinggi", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                            Text("Bunga paling besar dulu", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
                                             Spacer(Modifier.height(4.dp))
                                             Text("${comparison.avalanche.monthsToDebtFree} Bulan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                             Text("Bunga: ${CurrencyFormatter.formatCompactIdr(comparison.avalanche.totalInterestPaid, stealth)}", style = MoneySmallStyle, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f))
@@ -127,7 +145,7 @@ fun GroupDebtScreen(
                                 }
                                 if (comparison.interestSavedByAvalanche > 0L) {
                                     Text(
-                                        "Metode Avalanche menghemat bunga ${CurrencyFormatter.formatIdr(comparison.interestSavedByAvalanche, stealth)}!",
+                                        "Cara bunga tertinggi menghemat bunga ${CurrencyFormatter.formatIdr(comparison.interestSavedByAvalanche, stealth)}!",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = IncomeGreen,
                                         fontWeight = FontWeight.SemiBold
@@ -140,9 +158,24 @@ fun GroupDebtScreen(
                     item(key = "debt_header", contentType = "section_header") {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Daftar Utang & Piutang", style = MaterialTheme.typography.titleMedium)
-                            FilledTonalButton(onClick = { showAddDebt = true }, enabled = state.canEdit) {
+                            FilledTonalButton(onClick = { debtEditorTarget = true to null }, enabled = state.canEdit) {
                                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Text("Catat")
+                            }
+                        }
+                    }
+
+                    if (state.debtsLoans.isEmpty()) {
+                        item(key = "debt_empty", contentType = "empty") {
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    SvgLogo(resId = R.drawable.ic_logo_empty_state, contentDescription = null, size = 40.dp)
+                                    Text("Bersih dari utang & piutang! Ketuk '+ Catat' jika ingin melacak cicilan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -184,9 +217,21 @@ fun GroupDebtScreen(
                                     color = if (isDebt) MaterialTheme.colorScheme.primary else TransferBlue,
                                     modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(4.dp))
                                 )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Sisa: ${CurrencyFormatter.formatIdr(item.remainingAmount, stealth)}", style = MoneySmallStyle, color = if (isDebt) ExpenseRed else TransferBlue)
-                                    Text("Min/bln: ${CurrencyFormatter.formatIdr(item.minimumMonthlyPayment, stealth)}", style = MoneySmallStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column {
+                                        Text("Sisa: ${CurrencyFormatter.formatIdr(item.remainingAmount, stealth)}", style = MoneySmallStyle, color = if (isDebt) ExpenseRed else TransferBlue)
+                                        Text("Min/bln: ${CurrencyFormatter.formatIdr(item.minimumMonthlyPayment, stealth)}", style = MoneySmallStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (state.canEdit) {
+                                        Row {
+                                            IconButton(onClick = { debtEditorTarget = true to item }, modifier = Modifier.size(48.dp)) {
+                                                Icon(Icons.Filled.Edit, contentDescription = "Edit utang/piutang", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                            IconButton(onClick = { deleteDebtConfirm = item }, modifier = Modifier.size(48.dp)) {
+                                                Icon(Icons.Filled.DeleteOutline, contentDescription = "Hapus utang/piutang", tint = ExpenseRed)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -206,12 +251,26 @@ fun GroupDebtScreen(
                     item(key = "goal_header", contentType = "section_header") {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                if (state.isSharedWorkspace) "Target Tabungan Kolektif" else "Sinking Funds & Target Pribadi",
+                                if (state.isSharedWorkspace) "Tabungan Bersama" else "Celengan & Target Tabungan",
                                 style = MaterialTheme.typography.titleMedium
                             )
-                            FilledTonalButton(onClick = { showAddGoal = true }, enabled = state.canEdit) {
+                            FilledTonalButton(onClick = { goalEditorTarget = true to null }, enabled = state.canEdit) {
                                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Text("Target")
+                            }
+                        }
+                    }
+                    if (state.goals.isEmpty()) {
+                        item(key = "goal_empty", contentType = "empty") {
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    SvgLogo(resId = R.drawable.ic_logo_goal_target, contentDescription = null, size = 40.dp)
+                                    Text("Belum ada target tabungan. Ketuk '+ Target' untuk buat tujuan dana impianmu.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -243,9 +302,21 @@ fun GroupDebtScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(5.dp))
                                 )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(CurrencyFormatter.formatIdr(goal.currentAmount, stealth), style = MoneySmallStyle, color = MaterialTheme.colorScheme.primary)
-                                    Text("Target: ${CurrencyFormatter.formatIdr(goal.targetAmount, stealth)}", style = MoneySmallStyle)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column {
+                                        Text(CurrencyFormatter.formatIdr(goal.currentAmount, stealth), style = MoneySmallStyle, color = MaterialTheme.colorScheme.primary)
+                                        Text("Target: ${CurrencyFormatter.formatIdr(goal.targetAmount, stealth)}", style = MoneySmallStyle)
+                                    }
+                                    if (state.canEdit) {
+                                        Row {
+                                            IconButton(onClick = { goalEditorTarget = true to goal }, modifier = Modifier.size(48.dp)) {
+                                                Icon(Icons.Filled.Edit, contentDescription = "Edit target", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                            IconButton(onClick = { deleteGoalConfirm = goal }, modifier = Modifier.size(48.dp)) {
+                                                Icon(Icons.Filled.DeleteOutline, contentDescription = "Hapus target", tint = ExpenseRed)
+                                            }
+                                        }
+                                    }
                                 }
                                 if (goal.contributorSummary.isNotBlank()) {
                                     val contributors = goal.contributorSummary.split("|").filter { it.contains(":") }.map {
@@ -253,7 +324,7 @@ fun GroupDebtScreen(
                                         "${p[0]}: ${CurrencyFormatter.formatCompactIdr(p[1].toLongOrNull() ?: 0L, stealth)}"
                                     }
                                     Text(
-                                        "Kontribusi: ${contributors.joinToString(" • ")}",
+                                        "Setoran: ${contributors.joinToString(" • ")}",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -286,11 +357,19 @@ fun GroupDebtScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                         SvgLogo(resId = R.drawable.ic_logo_split_bill, contentDescription = null, size = 34.dp)
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Mesin Debt Simplification", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        Text("Ringkasan Pembayaran Patungan", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                     }
-                                    FilledTonalButton(onClick = { showAddSplit = true }, enabled = state.canEdit) {
-                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Text("Split Bill")
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = onOpenWorkspaceInvite,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            Icon(Icons.Filled.PersonAdd, contentDescription = "Undang & Hubungi Anggota", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        }
+                                        FilledTonalButton(onClick = { showAddSplit = true }, enabled = state.canEdit) {
+                                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Text("Buat Patungan")
+                                        }
                                     }
                                 }
                                 if (state.simplifiedSettlements.isEmpty()) {
@@ -320,7 +399,7 @@ fun GroupDebtScreen(
                     }
 
                     item(key = "split_history_header", contentType = "section_header") {
-                        Text("Riwayat Split Bill Grup", style = MaterialTheme.typography.titleMedium)
+                        Text("Riwayat Patungan", style = MaterialTheme.typography.titleMedium)
                     }
                     if (state.splitBills.isEmpty()) {
                         item(key = "split_empty", contentType = "empty") {
@@ -331,7 +410,7 @@ fun GroupDebtScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     SvgLogo(resId = R.drawable.ic_logo_empty_state, contentDescription = null, size = 56.dp)
-                                    Text("Belum ada catatan patungan di workspace ini.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Belum ada catatan patungan di ruang keuangan ini.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -356,6 +435,11 @@ fun GroupDebtScreen(
                                             color = if (bill.isSettled) IncomeGreen else WarningAmber
                                         )
                                     }
+                                    if (state.canEdit) {
+                                        IconButton(onClick = { deleteSplitConfirm = bill }, modifier = Modifier.size(48.dp)) {
+                                            Icon(Icons.Filled.DeleteOutline, contentDescription = "Hapus patungan", tint = ExpenseRed)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -366,96 +450,284 @@ fun GroupDebtScreen(
     }
 
     // --- DIALOGS ---
-    if (showAddDebt) {
-        var kind by remember { mutableStateOf("DEBT") }
-        var title by remember { mutableStateOf("") }
-        var party by remember { mutableStateOf("") }
-        var amtStr by remember { mutableStateOf("") }
-        var aprStr by remember { mutableStateOf("12.0") }
-        var minStr by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showAddDebt = false },
-            title = { Text("Catat Utang / Piutang") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    debtEditorTarget?.let { (_, existing) ->
+        var kind by remember(existing?.id) { mutableStateOf(existing?.kind ?: "DEBT") }
+        var title by remember(existing?.id) { mutableStateOf(existing?.title ?: "") }
+        var party by remember(existing?.id) { mutableStateOf(existing?.counterparty ?: "") }
+        var amtStr by remember(existing?.id) { mutableStateOf(existing?.principalAmount?.toString() ?: "") }
+        var remStr by remember(existing?.id) { mutableStateOf(existing?.remainingAmount?.toString() ?: "") }
+        var aprStr by remember(existing?.id) { mutableStateOf(existing?.interestRateAnnual?.toString() ?: "12.0") }
+        var minStr by remember(existing?.id) { mutableStateOf(existing?.minimumMonthlyPayment?.toString() ?: "") }
+        Dialog(
+            onDismissRequest = { debtEditorTarget = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 520.dp)
+                    .imePadding(),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        if (existing == null) "Catat Utang / Piutang" else "Edit: ${existing.title}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = kind == "DEBT", onClick = { kind = "DEBT" }, label = { Text("Utang Saya") })
                         FilterChip(selected = kind == "LOAN", onClick = { kind = "LOAN" }, label = { Text("Piutang Orang") })
                     }
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Judul") }, singleLine = true)
-                    OutlinedTextField(value = party, onValueChange = { party = it }, label = { Text("Bank / Pemberi / Peminjam") }, singleLine = true)
-                    OutlinedTextField(value = amtStr, onValueChange = { amtStr = it.filter(Char::isDigit) }, label = { Text("Pokok Nominal (Rp)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Nama Catatan") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_debt_title")
+                    )
+                    OutlinedTextField(
+                        value = party,
+                        onValueChange = { party = it },
+                        label = { Text("Bank / Pemberi / Peminjam") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_debt_party")
+                    )
+                    OutlinedTextField(
+                        value = amtStr,
+                        onValueChange = { amtStr = it.filter(Char::isDigit) },
+                        label = { Text("Jumlah Pinjaman Awal (Rp)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_debt_amount")
+                    )
+                    if (existing != null) {
+                        OutlinedTextField(
+                            value = remStr,
+                            onValueChange = { remStr = it.filter(Char::isDigit) },
+                            label = { Text("Sisa Saat Ini (Rp)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(value = aprStr, onValueChange = { aprStr = it }, label = { Text("Bunga %/thn") }, modifier = Modifier.weight(1f), singleLine = true)
                         OutlinedTextField(value = minStr, onValueChange = { minStr = it.filter(Char::isDigit) }, label = { Text("Cicilan Min") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                     }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val p = amtStr.toLongOrNull() ?: 0L
-                    if (title.isNotBlank() && p > 0L) {
-                        onSaveDebtLoan(kind, title, party.ifBlank { "-" }, p, aprStr.toDoubleOrNull() ?: 0.0, minStr.toLongOrNull() ?: (p / 12).coerceAtLeast(100_000L))
-                        showAddDebt = false
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { debtEditorTarget = null }) { Text("Batal") }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = {
+                            val p = amtStr.toLongOrNull() ?: 0L
+                            if (title.isNotBlank() && p > 0L) {
+                                onSaveDebtLoan(
+                                    existing?.id,
+                                    kind,
+                                    title,
+                                    party.ifBlank { "-" },
+                                    p,
+                                    if (existing != null) (remStr.toLongOrNull() ?: p) else null,
+                                    aprStr.toDoubleOrNull() ?: 0.0,
+                                    minStr.toLongOrNull() ?: (p / 12).coerceAtLeast(100_000L)
+                                )
+                                debtEditorTarget = null
+                            }
+                        }) { Text("Simpan") }
                     }
-                }) { Text("Simpan") }
+                }
+            }
+        }
+    }
+
+    deleteDebtConfirm?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleteDebtConfirm = null },
+            title = { Text("Hapus Catatan?") },
+            text = { Text("Catatan '${item.title}' akan dihapus permanen.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteDebtLoan(item)
+                        deleteDebtConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) { Text("Hapus") }
             },
-            dismissButton = { TextButton(onClick = { showAddDebt = false }) { Text("Batal") } }
+            dismissButton = { TextButton(onClick = { deleteDebtConfirm = null }) { Text("Batal") } }
         )
     }
 
     payInstallmentTarget?.let { item ->
         var amtStr by remember { mutableStateOf(item.minimumMonthlyPayment.coerceAtMost(item.remainingAmount).toString()) }
         val accId = state.accounts.firstOrNull()?.id ?: ""
-        AlertDialog(
+        Dialog(
             onDismissRequest = { payInstallmentTarget = null },
-            title = { Text("Bayar Cicilan: ${item.title}") },
-            text = {
-                OutlinedTextField(
-                    value = amtStr,
-                    onValueChange = { amtStr = it.filter(Char::isDigit) },
-                    label = { Text("Nominal Pembayaran (Rp)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val amt = amtStr.toLongOrNull() ?: 0L
-                    if (amt > 0L && accId.isNotBlank()) {
-                        onPayDebtInstallment(item, amt, accId)
-                        payInstallmentTarget = null
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 500.dp)
+                    .imePadding(),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Bayar Cicilan: ${item.title}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedTextField(
+                        value = amtStr,
+                        onValueChange = { amtStr = it.filter(Char::isDigit) },
+                        label = { Text("Nominal Pembayaran (Rp)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_pay_installment")
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { payInstallmentTarget = null }) { Text("Batal") }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = {
+                            val amt = amtStr.toLongOrNull() ?: 0L
+                            if (amt > 0L && accId.isNotBlank()) {
+                                onPayDebtInstallment(item, amt, accId)
+                                payInstallmentTarget = null
+                            }
+                        }) { Text("Proses") }
                     }
-                }) { Text("Proses") }
-            },
-            dismissButton = { TextButton(onClick = { payInstallmentTarget = null }) { Text("Batal") } }
-        )
+                }
+            }
+        }
     }
 
-    if (showAddGoal) {
-        var title by remember { mutableStateOf("") }
-        var targetStr by remember { mutableStateOf("") }
-        var monthlyStr by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showAddGoal = false },
-            title = { Text("Buat Target Tabungan") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Nama Target (mis. Dana Nikah)") }, singleLine = true)
-                    OutlinedTextField(value = targetStr, onValueChange = { targetStr = it.filter(Char::isDigit) }, label = { Text("Target Dana (Rp)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                    OutlinedTextField(value = monthlyStr, onValueChange = { monthlyStr = it.filter(Char::isDigit) }, label = { Text("Setoran Rencana / Bulan (Rp)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val t = targetStr.toLongOrNull() ?: 0L
-                    if (title.isNotBlank() && t > 0L) {
-                        onSaveGoal(title, t, monthlyStr.toLongOrNull() ?: (t / 12).coerceAtLeast(100_000L), 12)
-                        showAddGoal = false
+    goalEditorTarget?.let { (_, existing) ->
+        var title by remember(existing?.id) { mutableStateOf(existing?.title ?: "") }
+        var targetStr by remember(existing?.id) { mutableStateOf(existing?.targetAmount?.toString() ?: "") }
+        var currentStr by remember(existing?.id) { mutableStateOf((existing?.currentAmount ?: 0L).toString()) }
+        var monthlyStr by remember(existing?.id) { mutableStateOf(existing?.monthlyContribution?.toString() ?: "") }
+        Dialog(
+            onDismissRequest = { goalEditorTarget = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 520.dp)
+                    .imePadding(),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        if (existing == null) "Buat Target Tabungan" else "Edit Target: ${existing.title}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Nama Target (mis. Dana Nikah)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_goal_title")
+                    )
+                    OutlinedTextField(
+                        value = targetStr,
+                        onValueChange = { targetStr = it.filter(Char::isDigit) },
+                        label = { Text("Target Dana (Rp)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_goal_target")
+                    )
+                    if (existing != null) {
+                        OutlinedTextField(
+                            value = currentStr,
+                            onValueChange = { currentStr = it.filter(Char::isDigit) },
+                            label = { Text("Terkumpul Saat Ini (Rp)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                }) { Text("Buat") }
+                    OutlinedTextField(
+                        value = monthlyStr,
+                        onValueChange = { monthlyStr = it.filter(Char::isDigit) },
+                        label = { Text("Setoran Rencana / Bulan (Rp)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { goalEditorTarget = null }) { Text("Batal") }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = {
+                            val t = targetStr.toLongOrNull() ?: 0L
+                            if (title.isNotBlank() && t > 0L) {
+                                onSaveGoal(
+                                    existing?.id,
+                                    title,
+                                    t,
+                                    if (existing != null) (currentStr.toLongOrNull() ?: 0L) else 0L,
+                                    monthlyStr.toLongOrNull() ?: (t / 12).coerceAtLeast(100_000L),
+                                    12
+                                )
+                                goalEditorTarget = null
+                            }
+                        }) { Text(if (existing == null) "Buat" else "Simpan") }
+                    }
+                }
+            }
+        }
+    }
+
+    deleteGoalConfirm?.let { goal ->
+        AlertDialog(
+            onDismissRequest = { deleteGoalConfirm = null },
+            title = { Text("Hapus Target?") },
+            text = { Text("Target '${goal.title}' akan dihapus dari daftar tabungan.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteGoal(goal)
+                        deleteGoalConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) { Text("Hapus") }
             },
-            dismissButton = { TextButton(onClick = { showAddGoal = false }) { Text("Batal") } }
+            dismissButton = { TextButton(onClick = { deleteGoalConfirm = null }) { Text("Batal") } }
         )
     }
 
@@ -494,7 +766,7 @@ fun GroupDebtScreen(
         val selectedMembers = remember(state.members) { mutableStateListOf<String>().apply { addAll(state.members.map { it.id }) } }
         AlertDialog(
             onDismissRequest = { showAddSplit = false },
-            title = { Text("Buat Split Bill Baru") },
+            title = { Text("Catat Patungan Baru") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Nama Patungan") }, singleLine = true)
@@ -528,6 +800,24 @@ fun GroupDebtScreen(
                 }) { Text("Buat") }
             },
             dismissButton = { TextButton(onClick = { showAddSplit = false }) { Text("Batal") } }
+        )
+    }
+
+    deleteSplitConfirm?.let { bill ->
+        AlertDialog(
+            onDismissRequest = { deleteSplitConfirm = null },
+            title = { Text("Hapus Catatan Patungan?") },
+            text = { Text("Catatan patungan '${bill.title}' akan dihapus.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteSplitBill(bill)
+                        deleteSplitConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) { Text("Hapus") }
+            },
+            dismissButton = { TextButton(onClick = { deleteSplitConfirm = null }) { Text("Batal") } }
         )
     }
 }

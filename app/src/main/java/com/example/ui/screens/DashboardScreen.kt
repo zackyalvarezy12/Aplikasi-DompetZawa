@@ -63,10 +63,12 @@ fun DashboardScreen(
     onNavigateToWealth: () -> Unit,
     onNavigateToGroup: () -> Unit,
     onPayRecurring: (RecurringRuleEntity) -> Unit,
+    onEditTransaction: (TransactionEntity) -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onOpenAutoSalarySetup: () -> Unit,
     onOpenPayrollPopup: () -> Unit,
     onNavigateToAdvisor: () -> Unit,
+    onOpenZawaAi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val stealth = state.settings.isStealthMode
@@ -259,6 +261,56 @@ fun DashboardScreen(
             }
         }
 
+        // 2a. Zawa AI Interactive Assistant Banner Card
+        item(key = "zawa_ai_banner_card", contentType = "zawa_ai_banner") {
+            Card(
+                onClick = onOpenZawaAi,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.88f),
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_zawa_ai_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    SvgLogo(
+                        resId = R.drawable.ic_logo_advisor_ai,
+                        contentDescription = "Ikon Asisten Zawa AI",
+                        size = 40.dp
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Asisten Zawa ✨",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Minta bantuan untuk catat pengeluaran, atur pengingat tagihan, cek kondisi uang & saran hemat.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.88f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    FilledTonalButton(
+                        onClick = onOpenZawaAi,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.testTag("open_zawa_ai_button")
+                    ) {
+                        Text("Tanya Asisten", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+
         // 2b. Auto-Salary & Monthly Payday Pop-up Card
         item(key = "auto_salary_card", contentType = "auto_salary") {
             val salarySettings = state.settings
@@ -291,11 +343,11 @@ fun DashboardScreen(
                                 val lastInfo = if (salarySettings.lastSalaryNet > 0L) {
                                     "Terakhir: ${CurrencyFormatter.formatCompactIdr(salarySettings.lastSalaryNet, stealth)}"
                                 } else {
-                                    "Pop-up hitung libur/sakit siap"
+                                    "Kotak hitung libur/sakit siap"
                                 }
                                 "${CurrencyFormatter.formatCompactIdr(salarySettings.monthlyBaseSalary, stealth)} / ${salarySettings.salaryWorkingDays} hr • $lastInfo"
                             } else {
-                                "Set gaji & tanggal terima (mis. tgl 17) agar pop-up hitung libur, sakit & izin muncul otomatis."
+                                "Atur gaji & tanggal terima (mis. tgl 17) agar kotak hitung libur, sakit & izin muncul otomatis."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -366,7 +418,7 @@ fun DashboardScreen(
                             }
                         }
                         Text(
-                            "1. Ketik jajan atau gaji di kotak 'Catat Kilat' di bawah, otomatis tersimpan walau tanpa internet.",
+                            "1. Ketik jajan atau gaji di kotak 'Catat Cepat' di bawah, otomatis tersimpan walau tanpa internet.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
                         )
@@ -376,7 +428,7 @@ fun DashboardScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
                         )
                         Text(
-                            "3. Ketuk tombol 'Ganti Tema' kapan saja untuk pilih tema Lucu Pastel, Cerah, Gelap, atau Warna-Warni.",
+                            "3. Ketuk tombol 'Ganti Tema' kapan saja untuk pilih tema Pastel Lembut, Cerah Segar, Gelap, atau Warna-Warni.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
                         )
@@ -407,7 +459,7 @@ fun DashboardScreen(
                     KpiMiniCard(
                         title = "Uang Siap Pakai",
                         value = CurrencyFormatter.formatIdr(state.totalLiquidCash, stealth),
-                        subtitle = "Tunai, Bank & E-Wallet",
+                        subtitle = "Tunai, Bank & Dompet Digital",
                         accent = MaterialTheme.colorScheme.secondary,
                         logoResId = R.drawable.ic_logo_acc_cash
                     )
@@ -501,7 +553,7 @@ fun DashboardScreen(
                         FilterChip(
                             selected = historyFilter == TxTypes.TRANSFER,
                             onClick = { historyFilter = TxTypes.TRANSFER },
-                            label = { Text("Transfer") }
+                            label = { Text("Pindah Saldo") }
                         )
                     }
                 }
@@ -509,18 +561,42 @@ fun DashboardScreen(
         }
         if (historyTransactions.isEmpty()) {
             item(key = "recent_tx_empty", contentType = "empty") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Row(
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
+                    Column(
                         modifier = Modifier.fillMaxWidth().padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        SvgLogo(resId = R.drawable.ic_logo_empty_state, contentDescription = null, size = 44.dp)
-                        Text(
-                            "Belum ada transaksi di filter ini. Catat transaksi pertamamu di atas!",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            SvgLogo(resId = R.drawable.ic_logo_empty_state, contentDescription = null, size = 44.dp)
+                            Text(
+                                if (state.transactions.isEmpty()) {
+                                    "Dompet bersih Rp 0 siap dipakai! Catat pemasukan atau pengeluaran pertamamu di sini."
+                                } else {
+                                    "Belum ada catatan di pilihan ini."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (state.canEdit && state.transactions.isEmpty()) {
+                            FilledTonalButton(
+                                onClick = onOpenNewTransaction,
+                                modifier = Modifier.fillMaxWidth().testTag("dashboard_empty_add_tx_button")
+                            ) {
+                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Catat Pemasukan / Transaksi Pertama")
+                            }
+                        }
                     }
                 }
             }
@@ -541,6 +617,7 @@ fun DashboardScreen(
                     stealthMode = stealth,
                     canEdit = state.canEdit,
                     onDelete = onDeleteTransaction,
+                    onClick = onEditTransaction,
                     modifier = Modifier.animateItem()
                 )
             }
@@ -702,7 +779,7 @@ private fun DashboardQuickInputCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SvgLogo(resId = R.drawable.ic_logo_cat_salary, contentDescription = null, size = 26.dp)
                     Spacer(Modifier.width(8.dp))
-                    Text("Catat Kilat (Ketik Biasa Aja)", style = MaterialTheme.typography.titleSmall)
+                    Text("Catat Cepat (Ketik Biasa)", style = MaterialTheme.typography.titleSmall)
                 }
                 FilledTonalButton(
                     onClick = onOpenNewTransaction,
@@ -711,7 +788,7 @@ private fun DashboardQuickInputCard(
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Form")
+                    Text("Isi Lengkap")
                 }
             }
             Row(
@@ -762,7 +839,7 @@ private fun DashboardChartsCard(
     stealthMode: Boolean
 ) {
     var selectedChartTab by rememberSaveable { mutableStateOf(0) }
-    val chartLabels = remember { listOf("Tren 12B", "Masuk/Keluar", "Kategori", "Kalender") }
+    val chartLabels = remember { listOf("12 Bulan", "Masuk/Keluar", "Kategori", "Harian") }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

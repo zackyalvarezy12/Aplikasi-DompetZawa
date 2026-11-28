@@ -5,27 +5,20 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import com.example.data.local.AuditLogEntity
 import com.example.data.local.NusaKasDao
 import com.example.data.local.SyncStates
-import com.example.data.local.WorkspaceTypes
 import com.example.data.prefs.AppPreferences
 import com.example.data.prefs.UserSettings
+import com.example.data.remote.FirestoreCloudSyncRepository
+import com.example.data.repository.NusaKasRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.UUID
 
 enum class SyncVisualStatus {
     ONLINE_SYNCED,
@@ -43,7 +36,8 @@ data class SyncReport(
 class SyncEngine(
     private val context: Context,
     private val dao: NusaKasDao,
-    private val prefs: AppPreferences
+    private val prefs: AppPreferences,
+    val firestoreRepo: FirestoreCloudSyncRepository = FirestoreCloudSyncRepository(context)
 ) {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
@@ -86,131 +80,140 @@ class SyncEngine(
     }
 
     /**
-     * Hybrid Local-First Sync Execution:
-     * - If offline (network down or simulated offline), keeps items in sync_queue as PENDING.
-     * - If Cloud URL + API Key are provided, pushes JSON batch via lightweight HttpURLConnection to Supabase/Firebase.
-     * - If Auto Sync Simulation is active, simulates LWW conflict resolution and drains queue cleanly.
+     * Local-First + Automatic Firebase Firestore Sync:
+     * - Writes always land in local Room immediately so the UI is 100% responsive offline.
+     * - When online and signed in with Google (Firebase Auth), pushes queued mutations to Firestore.
+     * - If offline or not yet signed in with Google, retains items safely in sync_queue.
      */
     suspend fun syncPendingQueue(
         settings: UserSettings,
         isNetworkAvailable: Boolean,
-        activeWorkspaceType: String
+        @Suppress("UNUSED_PARAMETER") activeWorkspaceType: String
     ): SyncReport = withContext(Dispatchers.IO) {
         if (!isNetworkAvailable || settings.simulatedOffline) {
-            return@withContext SyncReport(0, 0, "Mode Offline: perubahan tetap aman di database lokal.", false)
+            return@withContext SyncReport(
+                0,
+                0,
+                "Tanpa Internet: perubahan tetap tersimpan aman di HP ini.",
+                false
+            )
         }
-        if (activeWorkspaceType == WorkspaceTypes.PERSONAL && dao.getPendingSyncItems().isEmpty()) {
-            val now = System.currentTimeMillis()
-            prefs.updateLastSync(now)
-            return@withContext SyncReport(0, 0, "Workspace Pribadi tersimpan 100% lokal.", true)
+
+        val uid = firestoreRepo.currentAuthenticatedUid()
+        if (uid == null) {
+            return@withContext SyncReport(
+                0,
+                0,
+                "Tersimpan aman di HP ini. Sambungkan akun Google untuk cadangan online otomatis.",
+                true
+            )
         }
 
         val pending = dao.getPendingSyncItems()
         if (pending.isEmpty()) {
             val now = System.currentTimeMillis()
             prefs.updateLastSync(now)
-            return@withContext SyncReport(0, 0, "Semua data sudah tersinkronisasi.", true)
+            return@withContext SyncReport(0, 0, "Semua data sudah dicadangkan di akun Google.", true)
         }
 
         _isSyncing.value = true
         try {
-            val hasRealCloud = settings.cloudUrl.isNotBlank() && settings.cloudApiKey.isNotBlank()
-            if (hasRealCloud) {
-                val pushed = pushToRealCloudEndpoint(settings, pending.map {
-                    JSONObject().apply {
-                        put("id", it.id)
-                        put("workspace_id", it.workspaceId)
-                        put("table_name", it.tableName)
-                        put("record_id", it.recordId)
-                        put("operation", it.operation)
-                        put("payload", it.payloadJson)
-                        put("utc_timestamp", it.createdAt)
-                    }
-                })
-                if (pushed) {
-                    dao.markSyncQueueSynced(pending.map { it.id })
-                    pending.map { it.workspaceId }.distinct().forEach { wsId ->
-                        dao.markAllTransactionsSynced(wsId, SyncStates.SYNCED)
-                    }
-                    val now = System.currentTimeMillis()
-                    prefs.updateLastSync(now)
-                    val msg = "Tersinkronisasi ke ${settings.cloudProvider}: ${pending.size} antrean (LWW UTC)."
-                    _lastSyncResult.value = msg
-                    return@withContext SyncReport(pending.size, 0, msg, true)
-                } else if (!settings.autoSyncSimulation) {
-                    val msg = "Gagal terhubung ke endpoint ${settings.cloudProvider}. Antrean dipertahankan."
-                    _lastSyncResult.value = msg
-                    return@withContext SyncReport(0, 0, msg, false)
+            val succeededIds = mutableListOf<String>()
+            val syncedWorkspaces = mutableSetOf<String>()
+            var lastError: String? = null
+
+            pending.forEach { item ->
+                val result = firestoreRepo.pushQueueItem(item, dao, settings)
+                if (result.isSuccess) {
+                    succeededIds += item.id
+                    syncedWorkspaces += item.workspaceId
+                } else {
+                    lastError = result.exceptionOrNull()?.localizedMessage
                 }
             }
 
-            if (settings.autoSyncSimulation) {
-                delay(400)
-                dao.markSyncQueueSynced(pending.map { it.id })
-                pending.map { it.workspaceId }.distinct().forEach { wsId ->
+            if (succeededIds.isNotEmpty()) {
+                dao.markSyncQueueSynced(succeededIds)
+                syncedWorkspaces.forEach { wsId ->
                     dao.markAllTransactionsSynced(wsId, SyncStates.SYNCED)
                 }
                 val now = System.currentTimeMillis()
                 prefs.updateLastSync(now)
-                val msg = "Simulasi Cloud Sync sukses: ${pending.size} perubahan didorong (Last-Write-Wins UTC)."
-                _lastSyncResult.value = msg
-                return@withContext SyncReport(pending.size, 0, msg, true)
             }
 
-            SyncReport(0, 0, "Lengkapi URL & API Key Cloud atau aktifkan Simulasi Sync.", false)
+            return@withContext if (succeededIds.size == pending.size) {
+                val msg = "Cadangan Google berhasil: ${succeededIds.size} perubahan tersimpan online."
+                _lastSyncResult.value = msg
+                SyncReport(succeededIds.size, 0, msg, true)
+            } else {
+                val msg = "Sebagian tersimpan online (${succeededIds.size}/${pending.size}). ${lastError ?: ""}".trim()
+                _lastSyncResult.value = msg
+                SyncReport(succeededIds.size, 0, msg, false)
+            }
         } finally {
             _isSyncing.value = false
         }
     }
 
-    private fun pushToRealCloudEndpoint(
+    suspend fun syncFullAndMergeOnSignIn(
         settings: UserSettings,
-        records: List<JSONObject>
-    ): Boolean {
-        var conn: HttpURLConnection? = null
-        return try {
-            val baseUrl = settings.cloudUrl.trimEnd('/')
-            val endpoint = if (settings.cloudProvider == "SUPABASE") {
-                "$baseUrl/rest/v1/nusakas_sync_events"
-            } else {
-                "$baseUrl/nusakas_sync_events.json?auth=${settings.cloudApiKey}"
-            }
-            conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = 8000
-                readTimeout = 8000
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                if (settings.cloudProvider == "SUPABASE") {
-                    setRequestProperty("apikey", settings.cloudApiKey)
-                    setRequestProperty("Authorization", "Bearer ${settings.cloudApiKey}")
-                    setRequestProperty("Prefer", "return=minimal")
+        repo: NusaKasRepository,
+        uid: String,
+        email: String,
+        displayName: String
+    ): SyncReport = withContext(Dispatchers.IO) {
+        _isSyncing.value = true
+        try {
+            val pullRes = firestoreRepo.pullUserSnapshot()
+            if (pullRes.isSuccess) {
+                val snap = pullRes.getOrThrow()
+                if (snap.workspaces.isNotEmpty()) {
+                    val wsPair = repo.mergeCloudSnapshot(snap, uid, email, displayName)
+                    if (wsPair != null) {
+                        prefs.setActiveWorkspace(wsPair.first, wsPair.second)
+                    }
+                    snap.profile?.let { fsProfile ->
+                        prefs.setThemePreset(fsProfile.themePreset)
+                        if (fsProfile.biometricEnabled) prefs.setBiometricEnabled(true)
+                        if (fsProfile.autoSalaryEnabled) {
+                            prefs.saveAutoSalaryConfig(
+                                enabled = fsProfile.autoSalaryEnabled,
+                                baseSalary = fsProfile.monthlyBaseSalary,
+                                paydayDay = fsProfile.salaryPaydayDay,
+                                workingDays = fsProfile.salaryWorkingDays,
+                                targetAccountId = snap.accounts.firstOrNull()?.id ?: ""
+                            )
+                        }
+                    }
+                    prefs.setOnboardingState(completedOnboarding = true, completedTutorial = true)
+                    val now = System.currentTimeMillis()
+                    prefs.updateLastSync(now)
+                    val msg = "Data cadangan dari akun Google dipulihkan (${snap.transactions.size} catatan, ${snap.accounts.size} rekening)."
+                    _lastSyncResult.value = msg
+                    return@withContext SyncReport(snap.transactions.size, 0, msg, true)
                 }
             }
-            val bodyJson = JSONArray(records).toString()
-            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
-                writer.write(bodyJson)
-                writer.flush()
-            }
-            conn.responseCode in 200..299
-        } catch (_: Exception) {
-            false
-        } finally {
-            conn?.disconnect()
-        }
-    }
 
-    suspend fun simulateIncomingPartnerSync(workspaceId: String, partnerName: String = "Nadia") {
-        dao.insertAuditLog(
-            AuditLogEntity(
-                id = UUID.randomUUID().toString(),
-                workspaceId = workspaceId,
-                actorMemberId = "mem_f_nadia",
-                actorName = partnerName,
-                action = "Sinkronisasi Anggota",
-                detail = "Data workspace bersama disinkronkan via Last-Write-Wins UTC",
-                createdAt = System.currentTimeMillis()
-            )
-        )
+            // Cloud is empty for this user: push local data up cleanly
+            val pushRes = firestoreRepo.pushFullSnapshot(dao, settings)
+            if (pushRes.isSuccess) {
+                val count = pushRes.getOrThrow()
+                val pendingIds = dao.getPendingSyncItems().map { it.id }
+                if (pendingIds.isNotEmpty()) dao.markSyncQueueSynced(pendingIds)
+                dao.getAllWorkspacesSnapshot().forEach { ws ->
+                    dao.markAllTransactionsSynced(ws.id, SyncStates.SYNCED)
+                }
+                prefs.updateLastSync(System.currentTimeMillis())
+                val msg = "Akun Google tersambung & $count data dari HP dicadangkan online."
+                _lastSyncResult.value = msg
+                SyncReport(count, 0, msg, true)
+            } else {
+                val msg = pushRes.exceptionOrNull()?.localizedMessage ?: "Gagal mencadangkan ke akun Google."
+                _lastSyncResult.value = msg
+                SyncReport(0, 0, msg, false)
+            }
+        } finally {
+            _isSyncing.value = false
+        }
     }
 }

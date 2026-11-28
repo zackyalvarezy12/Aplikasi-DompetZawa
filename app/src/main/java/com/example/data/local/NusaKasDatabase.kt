@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -23,7 +25,7 @@ import androidx.room.RoomDatabase
         SyncQueueEntity::class,
         AuditLogEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class NusaKasDatabase : RoomDatabase() {
@@ -33,6 +35,13 @@ abstract class NusaKasDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: NusaKasDatabase? = null
 
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recurring_rules ADD COLUMN reminderEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE recurring_rules ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): NusaKasDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -40,7 +49,7 @@ abstract class NusaKasDatabase : RoomDatabase() {
                     NusaKasDatabase::class.java,
                     "nusakas_local_first.db"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                 INSTANCE = instance
                 instance
@@ -48,3 +57,4 @@ abstract class NusaKasDatabase : RoomDatabase() {
         }
     }
 }
+

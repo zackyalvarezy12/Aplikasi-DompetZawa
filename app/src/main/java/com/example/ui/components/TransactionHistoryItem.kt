@@ -3,9 +3,11 @@ package com.example.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -124,6 +126,7 @@ fun SwipeableTransactionHistoryItem(
     canEdit: Boolean,
     onDelete: (TransactionEntity) -> Unit,
     modifier: Modifier = Modifier,
+    onClick: ((TransactionEntity) -> Unit)? = null,
     showAuthorSubtitle: Boolean = false,
     extraContent: (@Composable ColumnScope.() -> Unit)? = null
 ) {
@@ -155,9 +158,9 @@ fun SwipeableTransactionHistoryItem(
     val categoryLabel = category?.name ?: when (tx.type) {
         TxTypes.EXPENSE -> "Pengeluaran"
         TxTypes.INCOME -> "Pemasukan"
-        TxTypes.TRANSFER -> "Transfer"
-        TxTypes.SPLIT -> "Split Bill"
-        else -> tx.type
+        TxTypes.TRANSFER -> "Pindah Saldo"
+        TxTypes.SPLIT -> "Patungan / Rinci"
+        else -> CurrencyFormatter.txTypeLabel(tx.type)
     }
     val accLabel = if (isTransfer && toAccountName != null) {
         "$accountName → $toAccountName"
@@ -214,8 +217,16 @@ fun SwipeableTransactionHistoryItem(
         }
     ) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = MaterialTheme.shapes.medium
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ),
+            shape = MaterialTheme.shapes.medium,
+            modifier = if (canEdit && onClick != null) {
+                Modifier
+                    .clip(MaterialTheme.shapes.medium)
+                    .clickable { onClick(tx) }
+            } else Modifier
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(13.dp)) {
                 Row(
@@ -247,7 +258,7 @@ fun SwipeableTransactionHistoryItem(
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = "Pending",
+                                        text = "Di HP",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

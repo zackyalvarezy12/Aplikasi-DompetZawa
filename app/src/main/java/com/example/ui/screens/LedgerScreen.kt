@@ -32,8 +32,8 @@ private val TYPE_FILTER_CHIPS = listOf(
     "ALL" to "Semua",
     TxTypes.EXPENSE to "Keluar",
     TxTypes.INCOME to "Masuk",
-    TxTypes.TRANSFER to "Transfer",
-    TxTypes.SPLIT to "Split"
+    TxTypes.TRANSFER to "Pindah Saldo",
+    TxTypes.SPLIT to "Patungan / Rinci"
 )
 
 @Composable
@@ -41,6 +41,7 @@ fun LedgerScreen(
     state: MainUiState,
     onQuickInputSubmit: (String) -> Boolean,
     onOpenNewTransaction: () -> Unit,
+    onEditTransaction: (TransactionEntity) -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
@@ -117,7 +118,7 @@ fun LedgerScreen(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                placeholder = { Text("Cari judul, catatan, atau #tag...") },
+                placeholder = { Text("Cari nama transaksi atau catatan...") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("ledger_search_input")
             )
@@ -170,7 +171,7 @@ fun LedgerScreen(
                     FilterChip(
                         selected = selectedAccountFilter == "ALL",
                         onClick = { selectedAccountFilter = "ALL" },
-                        label = { Text("Semua Akun") }
+                        label = { Text("Semua Rekening") }
                     )
                 }
                 items(
@@ -201,7 +202,7 @@ fun LedgerScreen(
                             size = 64.dp
                         )
                         Text(
-                            "Tidak ada transaksi yang cocok dengan filter.",
+                            "Tidak ada catatan yang cocok dengan pilihan ini.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -227,6 +228,7 @@ fun LedgerScreen(
                     stealthMode = stealth,
                     canEdit = state.canEdit,
                     onDelete = onDeleteTransaction,
+                    onClick = onEditTransaction,
                     showAuthorSubtitle = true,
                     modifier = Modifier.animateItem(),
                     extraContent = if (splitItems.isNotEmpty() || tx.tags.isNotBlank() || tx.receiptImagePath != null || state.canEdit) {
@@ -269,11 +271,19 @@ fun LedgerScreen(
                                         }
                                     }
                                     if (state.canEdit) {
-                                        IconButton(
-                                            onClick = { onDeleteTransaction(tx) },
-                                            modifier = Modifier.size(48.dp)
-                                        ) {
-                                            Icon(Icons.Filled.DeleteOutline, contentDescription = "Hapus transaksi", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = { onEditTransaction(tx) },
+                                                modifier = Modifier.size(48.dp).testTag("edit_tx_${tx.id}")
+                                            ) {
+                                                Icon(Icons.Filled.Edit, contentDescription = "Edit transaksi", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                            IconButton(
+                                                onClick = { onDeleteTransaction(tx) },
+                                                modifier = Modifier.size(48.dp).testTag("delete_tx_${tx.id}")
+                                            ) {
+                                                Icon(Icons.Filled.DeleteOutline, contentDescription = "Hapus transaksi", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
                                         }
                                     }
                                 }
@@ -324,7 +334,7 @@ private fun LedgerQuickInputCard(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     SvgLogo(resId = R.drawable.ic_logo_report_ledger, contentDescription = null, size = 32.dp)
                     Spacer(Modifier.width(8.dp))
-                    Text("Buku Besar", style = MaterialTheme.typography.titleMedium)
+                    Text("Buku Catatan", style = MaterialTheme.typography.titleMedium)
                 }
                 FilledTonalButton(
                     onClick = onOpenNewTransaction,
@@ -333,14 +343,14 @@ private fun LedgerQuickInputCard(
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Form Lengkap")
+                    Text("Isi Lengkap")
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = quickText,
                     onValueChange = { quickText = it },
-                    placeholder = { Text("Beli kopi 28rb pakai GoPay #nongkrong") },
+                    placeholder = { Text("Contoh: Beli kopi 28rb pakai GoPay") },
                     singleLine = true,
                     modifier = Modifier.weight(1f).testTag("ledger_quick_input")
                 )
@@ -351,7 +361,7 @@ private fun LedgerQuickInputCard(
                     enabled = quickText.isNotBlank() && canEdit,
                     modifier = Modifier.height(52.dp)
                 ) {
-                    Text("Input")
+                    Text("Catat")
                 }
             }
         }

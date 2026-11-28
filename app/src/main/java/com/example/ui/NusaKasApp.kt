@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.local.TransactionEntity
 import com.example.domain.PayrollCalculator
 import com.example.ui.components.*
 import com.example.ui.screens.*
@@ -35,13 +36,19 @@ enum class NusaKasTab(
 ) {
     DASHBOARD("Beranda", Icons.Filled.Home, Icons.Outlined.Home),
     LEDGER("Catatan", Icons.Filled.ReceiptLong, Icons.Outlined.ReceiptLong),
+    CALENDAR("Kalender", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
     WEALTH("Dompet", Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
     GROUP_DEBT("Patungan", Icons.Filled.Groups, Icons.Outlined.Groups),
     ADVISOR("Laporan", Icons.Filled.Insights, Icons.Outlined.Insights)
 }
 
 @Composable
-fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
+fun NusaKasApp(
+    viewModel: NusaKasViewModel = viewModel(),
+    deepLinkTab: String? = null,
+    deepLinkSubTab: Int? = null,
+    deepLinkNonce: Int = 0
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val isPinUnlocked by viewModel.isPinUnlocked.collectAsStateWithLifecycle()
     val hasEnteredSession by viewModel.hasEnteredSession.collectAsStateWithLifecycle()
@@ -52,15 +59,48 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
     }
 
     var currentTab by rememberSaveable { mutableStateOf(NusaKasTab.DASHBOARD) }
+    var wealthRequestedSubTab by rememberSaveable { mutableStateOf<Int?>(null) }
+    var wealthSubTabNonce by rememberSaveable { mutableIntStateOf(0) }
     val stateHolder = rememberSaveableStateHolder()
     var showWorkspaceModal by remember { mutableStateOf(false) }
     var showThemeModal by remember { mutableStateOf(false) }
-    var showSyncSecurityModal by remember { mutableStateOf(false) }
+    var showProfileSecurityModal by remember { mutableStateOf(false) }
     var showNewTransactionModal by remember { mutableStateOf(false) }
+    var prefillTransactionDateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var showAutoSalarySetupModal by remember { mutableStateOf(false) }
     var showPayrollPopupManual by remember { mutableStateOf(false) }
+    var showZawaAiModal by rememberSaveable { mutableStateOf(false) }
     var dismissedPayrollInSession by rememberSaveable { mutableStateOf(false) }
     var autoTimePreviewPhase by rememberSaveable { mutableStateOf<TimeOfDayPastelPhase?>(null) }
+
+    val aiUiState by viewModel.aiUiState.collectAsStateWithLifecycle()
+    val aiMessages by viewModel.aiMessages.collectAsStateWithLifecycle()
+    val aiAnalysisState by viewModel.aiAnalysisState.collectAsStateWithLifecycle()
+    val aiStreamingAnalysis by viewModel.aiStreamingAnalysis.collectAsStateWithLifecycle()
+    val aiNavigationRequest by viewModel.aiNavigationRequest.collectAsStateWithLifecycle()
+
+    LaunchedEffect(aiNavigationRequest) {
+        aiNavigationRequest?.let { (tabKey, _) ->
+            currentTab = when (tabKey) {
+                "LEDGER" -> NusaKasTab.LEDGER
+                "WEALTH" -> NusaKasTab.WEALTH
+                "GROUP_DEBT" -> NusaKasTab.GROUP_DEBT
+                "ADVISOR" -> NusaKasTab.ADVISOR
+                else -> NusaKasTab.DASHBOARD
+            }
+            showZawaAiModal = false
+            viewModel.consumeAiNavigationRequest()
+        }
+    }
+
+    LaunchedEffect(deepLinkNonce) {
+        if (deepLinkNonce > 0 && deepLinkTab == "WEALTH") {
+            currentTab = NusaKasTab.WEALTH
+            wealthRequestedSubTab = deepLinkSubTab
+            wealthSubTabNonce++
+        }
+    }
 
     val isPaydayAutoDue = remember(state.settings, state.canEdit) {
         state.canEdit && PayrollCalculator.isPaydayDueThisMonth(
@@ -95,14 +135,46 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
             return@NusaKasTheme
         }
 
+        val needsOnboarding = !state.settings.hasCompletedOnboarding || state.currentUser == null || state.workspaces.isEmpty()
+
+        if (needsOnboarding) {
+            OnboardingScreen(
+                tutorialOnlyMode = false,
+                initialName = state.currentUser?.name ?: state.authUserDisplayName,
+                isGoogleLinked = state.isGoogleLinked,
+                googleEmail = state.authUserEmail,
+                isAuthBusy = state.isAuthBusy,
+                onSignInWithGoogle = { ctx, cb -> viewModel.signInWithGoogle(ctx, cb) },
+                onRegisterWithEmailPassword = { ctx, email, pass, name, cb -> viewModel.registerWithEmailPassword(ctx, email, pass, name, cb) },
+                onSignInWithEmailPassword = { ctx, email, pass, cb -> viewModel.signInWithEmailPassword(ctx, email, pass, cb) },
+                onCompleteOnboarding = { displayName, colorHex, pin6, bio, photoUri ->
+                    viewModel.completeOnboarding(
+                        displayName = displayName,
+                        avatarColorHex = colorHex,
+                        pin6Digit = pin6,
+                        enableBiometric = bio,
+                        profilePhotoUri = photoUri,
+                        markTutorialDone = false
+                    )
+                },
+                onCompleteTutorialOnly = viewModel::markTutorialCompleted
+            )
+            return@NusaKasTheme
+        }
+
         if (showLoginScreen) {
             PinLockScreen(
                 isPinRequired = isPinRequired,
+                isBiometricEnabled = state.settings.isBiometricEnabled,
                 userName = state.activeMember?.name ?: state.currentUser?.name ?: "Sahabat",
                 workspaceName = state.activeWorkspace?.name ?: "Keuangan Pribadi",
+                profilePhotoPath = state.settings.profilePhotoPath,
+                avatarColorHex = state.currentUser?.avatarColorHex ?: 0xFF065F46L,
                 onVerifyPin = viewModel::unlockWithPin,
+                onBiometricSuccess = viewModel::unlockWithBiometric,
                 onEnterWithoutPin = viewModel::enterSession,
-                onOpenThemePicker = { showThemeModal = true }
+                onOpenThemePicker = { showThemeModal = true },
+                onSwitchOrLogoutAccount = if (!isPinRequired) viewModel::logoutAndSwitchAccount else null
             )
             if (showThemeModal) {
                 ThemePickerDialog(
@@ -141,7 +213,7 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
                         state = state,
                         onOpenWorkspaceModal = { showWorkspaceModal = true },
                         onOpenThemeModal = { showThemeModal = true },
-                        onOpenSyncSecurityModal = { showSyncSecurityModal = true },
+                        onOpenSyncSecurityModal = { showProfileSecurityModal = true },
                         onToggleStealth = viewModel::toggleStealthMode
                     )
                 },
@@ -233,10 +305,12 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
                                     onNavigateToWealth = { currentTab = NusaKasTab.WEALTH },
                                     onNavigateToGroup = { currentTab = NusaKasTab.GROUP_DEBT },
                                     onPayRecurring = viewModel::payRecurringNow,
+                                    onEditTransaction = { tx -> editingTransaction = tx },
                                     onDeleteTransaction = viewModel::deleteTransaction,
                                     onOpenAutoSalarySetup = { showAutoSalarySetupModal = true },
                                     onOpenPayrollPopup = { showPayrollPopupManual = true },
                                     onNavigateToAdvisor = { currentTab = NusaKasTab.ADVISOR },
+                                    onOpenZawaAi = { showZawaAiModal = true },
                                     modifier = contentModifier
                                 )
 
@@ -244,37 +318,110 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
                                     state = state,
                                     onQuickInputSubmit = viewModel::submitQuickInput,
                                     onOpenNewTransaction = { showNewTransactionModal = true },
+                                    onEditTransaction = { tx -> editingTransaction = tx },
                                     onDeleteTransaction = viewModel::deleteTransaction,
                                     onLoadMore = viewModel::loadMoreTransactions,
                                     modifier = contentModifier
                                 )
 
+                                NusaKasTab.CALENDAR -> CalendarScreen(
+                                    accounts = state.accounts,
+                                    categories = state.categories,
+                                    transactions = state.transactions,
+                                    recurringRules = state.recurringRules,
+                                    userSettings = state.settings,
+                                    categoryMap = state.categoryMap,
+                                    accountMap = state.accountMap,
+                                    splitItemsByTxId = state.splitItemsByTxId,
+                                    canEdit = state.canEdit,
+                                    onOpenAddTransactionForDate = { dateMillis ->
+                                        prefillTransactionDateMillis = dateMillis
+                                        showNewTransactionModal = true
+                                    },
+                                    onEditTransaction = { tx -> editingTransaction = tx },
+                                    onDeleteTransaction = viewModel::deleteTransaction,
+                                    onPayRecurring = viewModel::payRecurringNow
+                                )
+
                                 NusaKasTab.WEALTH -> WealthBudgetScreen(
                                     state = state,
+                                    requestedSubTab = wealthRequestedSubTab,
+                                    requestedSubTabNonce = wealthSubTabNonce,
                                     onSaveAccount = viewModel::saveAccount,
                                     onReconcileAccount = viewModel::reconcileAccount,
+                                    onDeleteAccount = viewModel::deleteAccount,
                                     onSaveAsset = viewModel::saveAsset,
-                                    onSaveBudget = viewModel::saveBudget,
-                                    onSaveRecurring = viewModel::saveRecurringRule,
+                                    onDeleteAsset = viewModel::deleteAsset,
+                                    onSaveBudget = { existingId, catId, lim, roll, rollEn ->
+                                        viewModel.saveBudget(
+                                            existingId = existingId,
+                                            categoryId = catId,
+                                            limitAmount = lim,
+                                            rolloverAmount = roll,
+                                            rolloverEnabled = rollEn
+                                        )
+                                    },
+                                    onDeleteBudget = viewModel::deleteBudget,
+                                    onSaveRecurring = { existingId, title, amt, accId, catId, freq, dueMillis, reminderEn ->
+                                        viewModel.saveRecurringRule(
+                                            existingId = existingId,
+                                            title = title,
+                                            amount = amt,
+                                            accountId = accId,
+                                            categoryId = catId,
+                                            frequency = freq,
+                                            nextDueDateMillis = dueMillis,
+                                            reminderEnabled = reminderEn
+                                        )
+                                    },
+                                    onDeleteRecurring = viewModel::deleteRecurringRule,
                                     onPayRecurringNow = viewModel::payRecurringNow,
                                     modifier = contentModifier
                                 )
 
                                 NusaKasTab.GROUP_DEBT -> GroupDebtScreen(
                                     state = state,
-                                    onSaveDebtLoan = viewModel::saveDebtLoan,
+                                    onSaveDebtLoan = { existingId, kind, title, party, principal, remaining, apr, minPay ->
+                                        viewModel.saveDebtLoan(
+                                            existingId = existingId,
+                                            kind = kind,
+                                            title = title,
+                                            counterparty = party,
+                                            principal = principal,
+                                            remainingAmount = remaining,
+                                            interestRateAnnual = apr,
+                                            minMonthlyPayment = minPay
+                                        )
+                                    },
+                                    onDeleteDebtLoan = viewModel::deleteDebtLoan,
                                     onPayDebtInstallment = viewModel::payDebtInstallment,
-                                    onSaveGoal = viewModel::saveGoal,
+                                    onSaveGoal = { existingId, title, target, current, monthly, monthsAhead ->
+                                        viewModel.saveGoal(
+                                            existingId = existingId,
+                                            title = title,
+                                            targetAmount = target,
+                                            currentAmount = current,
+                                            monthlyContribution = monthly,
+                                            monthsAhead = monthsAhead
+                                        )
+                                    },
+                                    onDeleteGoal = viewModel::deleteGoal,
                                     onContributeGoal = viewModel::contributeToGoal,
                                     onCreateSplitBill = viewModel::createEqualSplitBill,
+                                    onDeleteSplitBill = viewModel::deleteSplitBill,
                                     onSettleTransfer = viewModel::settleGroupTransfer,
+                                    onOpenWorkspaceInvite = { showWorkspaceModal = true },
                                     modifier = contentModifier
                                 )
 
                                 NusaKasTab.ADVISOR -> AdvisorReportsScreen(
                                     state = state,
-                                    onOpenSyncSecurity = { showSyncSecurityModal = true },
+                                    onOpenSyncSecurity = { showProfileSecurityModal = true },
                                     onNotify = viewModel::showMessage,
+                                    aiAnalysisState = aiAnalysisState,
+                                    aiStreamingText = aiStreamingAnalysis,
+                                    onRunDeepAiAnalysis = { viewModel.runDeepAiAnalysisStream() },
+                                    onOpenZawaAiChat = { showZawaAiModal = true },
                                     modifier = contentModifier
                                 )
                             }
@@ -308,25 +455,54 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
             )
         }
 
-        if (showSyncSecurityModal) {
-            CloudSyncAndSecurityDialog(
+        if (showProfileSecurityModal) {
+            ProfileAndSecurityDialog(
                 state = state,
-                onDismiss = { showSyncSecurityModal = false },
+                onDismiss = { showProfileSecurityModal = false },
+                onUpdateProfile = viewModel::updateUserProfile,
+                onUpdateProfilePhoto = viewModel::updateProfilePhoto,
+                onRemoveProfilePhoto = viewModel::removeProfilePhoto,
+                onSignInWithGoogle = { ctx -> viewModel.signInWithGoogle(ctx) },
+                onSignOutGoogle = viewModel::signOutGoogle,
                 onToggleOfflineSim = viewModel::toggleSimulatedOffline,
-                onSaveCloudConfig = viewModel::saveCloudSettings,
                 onTriggerSync = viewModel::triggerManualSync,
                 onEnablePin = viewModel::enablePin,
                 onDisablePin = viewModel::disablePin,
-                onLockNow = viewModel::lockAppNow
+                onSetBiometricEnabled = viewModel::setBiometricEnabled,
+                onLockNow = viewModel::lockAppNow,
+                onSetBillReminderEnabled = viewModel::setBillReminderEnabled,
+                onTestBillNotification = viewModel::testBillReminderNotificationNow,
+                onReplayTutorial = viewModel::replayTutorial,
+                onResetCleanAccount = viewModel::resetCleanAccount,
+                onLogoutKeepData = viewModel::logoutSessionKeepData,
+                onLogoutSwitchAccount = viewModel::logoutAndSwitchAccount
             )
         }
 
-        if (showNewTransactionModal) {
+        val activeTxForModal = editingTransaction
+        if (showNewTransactionModal || activeTxForModal != null) {
             TransactionEntryDialog(
                 accounts = state.accounts,
                 categories = state.categories,
-                onDismiss = { showNewTransactionModal = false },
-                onSave = viewModel::saveTransaction
+                existingTx = activeTxForModal,
+                existingSplitItems = activeTxForModal?.let { state.splitItemsByTxId[it.id] }.orEmpty(),
+                initialDateMillis = prefillTransactionDateMillis,
+                onDismiss = {
+                    showNewTransactionModal = false
+                    prefillTransactionDateMillis = null
+                    editingTransaction = null
+                },
+                onSave = viewModel::saveTransaction,
+                onDelete = viewModel::deleteTransaction,
+                onSaveCategory = { name, type ->
+                    viewModel.saveCategory(
+                        existingId = null,
+                        name = name,
+                        type = type,
+                        iconKey = "category",
+                        colorHex = 0xFF059669L
+                    )
+                }
             )
         }
 
@@ -369,6 +545,34 @@ fun NusaKasApp(viewModel: NusaKasViewModel = viewModel()) {
                     showPayrollPopupManual = false
                     dismissedPayrollInSession = true
                 }
+            )
+        }
+
+        if (showZawaAiModal) {
+            ZawaAiAssistantDialog(
+                uiState = aiUiState,
+                messages = aiMessages,
+                onSendMessage = viewModel::sendMessageToZawaAi,
+                onRetryLastMessage = viewModel::retryLastZawaAiMessage,
+                onClearChat = viewModel::clearAiChat,
+                onDismissError = viewModel::dismissAiError,
+                onDismiss = { showZawaAiModal = false }
+            )
+        }
+
+        if (!state.settings.hasCompletedTutorial) {
+            AppTutorialOverlay(
+                userName = state.currentUser?.name ?: state.activeMember?.name ?: "",
+                onSelectTabKey = { tabKey ->
+                    currentTab = when (tabKey) {
+                        "LEDGER" -> NusaKasTab.LEDGER
+                        "WEALTH" -> NusaKasTab.WEALTH
+                        "GROUP_DEBT" -> NusaKasTab.GROUP_DEBT
+                        "ADVISOR" -> NusaKasTab.ADVISOR
+                        else -> NusaKasTab.DASHBOARD
+                    }
+                },
+                onFinishTutorial = viewModel::markTutorialCompleted
             )
         }
     }

@@ -14,8 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,11 +27,15 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.security.BiometricAuthHelper
+import com.example.security.BiometricAuthHelper.findFragmentActivity
+import com.example.security.BiometricAvailability
 import com.example.ui.theme.Gold100
 import com.example.ui.theme.Gold200
 import com.example.ui.theme.LocalActiveHeroGradient
@@ -40,26 +46,66 @@ import kotlinx.coroutines.launch
 private val MASCOT_CHEER_QUOTES = listOf(
     "Ketuk aku buat tambah semangat! ✨",
     "Sedikit demi sedikit, tabungan jadi bukit! 🪙",
-    "Dompet rapi, hati pun ikut happy! 💖",
-    "Data aman 100% lokal di HP-mu! 🛡️"
+    "Dompet rapi, hati pun ikut tenang! 💖",
+    "Data aman di HP & tersimpan otomatis! 🛡️"
 )
 
 @Composable
 fun PinLockScreen(
     isPinRequired: Boolean,
+    isBiometricEnabled: Boolean = false,
     userName: String,
     workspaceName: String,
+    profilePhotoPath: String = "",
+    avatarColorHex: Long = 0xFF065F46L,
     onVerifyPin: (String) -> Boolean,
+    onBiometricSuccess: () -> Unit = {},
     onEnterWithoutPin: () -> Unit,
     onOpenThemePicker: () -> Unit,
+    onSwitchOrLogoutAccount: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val activity = remember(context) { context.findFragmentActivity() }
+    val biometricAvailable = remember(context) {
+        BiometricAuthHelper.checkAvailability(context) == BiometricAvailability.AVAILABLE
+    }
+    val canUseBiometric = isPinRequired && isBiometricEnabled && biometricAvailable && activity != null
+
     var entered by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var quoteIndex by remember { mutableIntStateOf(0) }
     var celebrationTrigger by remember { mutableIntStateOf(0) }
     var errorShakeTrigger by remember { mutableIntStateOf(0) }
     var isEntering by remember { mutableStateOf(false) }
+    var hasPromptedBiometric by remember { mutableStateOf(false) }
+    var showSwitchAccountConfirm by remember { mutableStateOf(false) }
+
+    val triggerBiometric: () -> Unit = {
+        activity?.let { act ->
+            BiometricAuthHelper.authenticate(
+                activity = act,
+                onSuccess = {
+                    isEntering = true
+                    celebrationTrigger++
+                    onBiometricSuccess()
+                },
+                onErrorOrCancelled = { msg ->
+                    if (!msg.isNullOrBlank()) {
+                        errorMsg = msg
+                    }
+                }
+            )
+        }
+    }
+
+    LaunchedEffect(canUseBiometric) {
+        if (canUseBiometric && !hasPromptedBiometric) {
+            hasPromptedBiometric = true
+            delay(180)
+            triggerBiometric()
+        }
+    }
 
     val heroColors = LocalActiveHeroGradient.current
     val activeTimePhase = LocalActiveTimePastelPhase.current
@@ -67,7 +113,7 @@ fun PinLockScreen(
 
     val currentSpeech = when {
         errorMsg != null -> "Ups! PIN belum cocok nih, coba lagi ya~ 😿"
-        isEntering -> "Hore! Selamat beraktivitas dengan cuan sehat! 🎉"
+        isEntering -> "Hore! Selamat beraktivitas dengan keuangan sehat! 🎉"
         else -> MASCOT_CHEER_QUOTES[quoteIndex % MASCOT_CHEER_QUOTES.size]
     }
 
@@ -182,6 +228,24 @@ fun PinLockScreen(
 
                 Spacer(Modifier.height(6.dp))
 
+                if (profilePhotoPath.isNotBlank()) {
+                    val initials = userName.trim().split(" ").filter { it.isNotBlank() }.let { parts ->
+                        when {
+                            parts.isEmpty() -> "DZ"
+                            parts.size == 1 -> parts[0].take(2).uppercase()
+                            else -> "${parts[0].first()}${parts[1].first()}".uppercase()
+                        }
+                    }
+                    UserAvatar(
+                        initials = initials,
+                        avatarColorHex = avatarColorHex,
+                        photoPath = profilePhotoPath,
+                        size = 46.dp,
+                        modifier = Modifier.border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
+
                 Text(
                     text = if (isPinRequired) "Dompet Zawa Terkunci" else "Halo, $userName!",
                     style = MaterialTheme.typography.headlineMedium,
@@ -192,9 +256,9 @@ fun PinLockScreen(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = if (isPinRequired) {
-                        "Masukkan PIN 6-Digit untuk membuka dompetmu ✨"
+                        "Masukkan PIN 6 angka untuk membuka dompetmu ✨"
                     } else {
-                        "Siap kelola keuangan $workspaceName dengan ceria hari ini?"
+                        "Siap kelola $workspaceName dengan mudah hari ini?"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.9f),
@@ -235,12 +299,26 @@ fun PinLockScreen(
             }
 
             if (isPinRequired) {
-                // PIN Keypad
+                // PIN Keypad + optional Face/Biometric button
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.widthIn(max = 320.dp)
                 ) {
+                    if (canUseBiometric) {
+                        FilledTonalButton(
+                            onClick = triggerBiometric,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = Color.White.copy(alpha = 0.22f),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.testTag("pin_biometric_button")
+                        ) {
+                            Icon(Icons.Rounded.Face, contentDescription = "Buka dengan Wajah atau Sidik Jari")
+                            Spacer(Modifier.width(8.dp))
+                            Text("Buka dengan Wajah / Sidik Jari", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                     val rows = listOf(
                         listOf("1", "2", "3"),
                         listOf("4", "5", "6"),
@@ -333,7 +411,7 @@ fun PinLockScreen(
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Ruang Kerja Aktif",
+                                    text = "Ruang Keuangan Aktif",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Gold100
                                 )
@@ -393,14 +471,49 @@ fun PinLockScreen(
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            text = "Kamu bisa aktifkan PIN 6-Digit di menu Sync & Keamanan",
+                            text = "Kamu bisa aktifkan PIN 6 angka di menu Profil & Keamanan",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center
                         )
                     }
+
+                    if (onSwitchOrLogoutAccount != null) {
+                        TextButton(
+                            onClick = { showSwitchAccountConfirm = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                            modifier = Modifier.testTag("login_switch_account_button")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Keluar / Ganti Akun Baru")
+                        }
+                    }
                 }
             }
+        }
+
+        if (showSwitchAccountConfirm && onSwitchOrLogoutAccount != null) {
+            AlertDialog(
+                onDismissRequest = { showSwitchAccountConfirm = false },
+                title = { Text("Ganti atau Buat Akun Baru?") },
+                text = { Text("Kamu akan kembali ke halaman awal pembuatan akun. Pastikan catatan penting sudah dicadangkan ke akun Google jika ingin memakainya lagi nanti.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showSwitchAccountConfirm = false
+                            onSwitchOrLogoutAccount()
+                        }
+                    ) {
+                        Text("Ya, Ganti Akun")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSwitchAccountConfirm = false }) {
+                        Text("Batal")
+                    }
+                }
+            )
         }
     }
 }

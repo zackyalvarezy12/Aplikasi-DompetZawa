@@ -66,4 +66,57 @@ object CurrencyFormatter {
             monthKey
         }
     }
+
+    fun accountTypeLabel(type: String): String = when (type.uppercase(Locale.US)) {
+        "CASH" -> "Tunai"
+        "BANK" -> "Rekening Bank"
+        "EWALLET" -> "Dompet Digital"
+        "CREDIT_CARD" -> "Kartu Kredit"
+        "DEPOSIT" -> "Deposito"
+        "INVESTMENT" -> "Tabungan Investasi"
+        else -> type
+    }
+
+    fun memberRoleLabel(role: String): String = when (role.uppercase(Locale.US)) {
+        "OWNER" -> "Pemilik"
+        "EDITOR" -> "Bisa Catat"
+        "VIEWER" -> "Hanya Lihat"
+        else -> role
+    }
+
+    fun assetClassLabel(assetClass: String): String = when (assetClass.uppercase(Locale.US)) {
+        "GOLD" -> "Emas"
+        "STOCKS" -> "Saham"
+        "MUTUAL_FUND" -> "Reksa Dana"
+        "PROPERTY" -> "Properti / Tanah"
+        else -> assetClass
+    }
+
+    fun frequencyLabel(freq: String): String = when (freq.uppercase(Locale.US)) {
+        "DAILY" -> "Harian"
+        "WEEKLY" -> "Mingguan"
+        "MONTHLY" -> "Bulanan"
+        "YEARLY" -> "Tahunan"
+        else -> freq
+    }
+
+    fun debtKindLabel(kind: String): String = when (kind.uppercase(Locale.US)) {
+        "LOAN" -> "Piutang (Uang Dipinjam Orang)"
+        else -> "Utang"
+    }
+
+    fun txTypeLabel(type: String): String = when (type.uppercase(Locale.US)) {
+        "INCOME" -> "Pemasukan"
+        "EXPENSE" -> "Pengeluaran"
+        "TRANSFER" -> "Pindah Saldo"
+        "SPLIT" -> "Patungan / Rincian"
+        else -> type
+    }
+
+    fun syncStatusLabel(status: String): String = when (status.uppercase(Locale.US)) {
+        "SYNCED" -> "Tersimpan Online"
+        "PENDING" -> "Menunggu Cadangkan"
+        "CONFLICT" -> "Perlu Dicek"
+        else -> status
+    }
 }

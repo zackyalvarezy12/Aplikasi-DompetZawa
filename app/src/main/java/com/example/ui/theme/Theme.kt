@@ -25,7 +25,7 @@ enum class TimeOfDayPastelPhase(
 ) {
     SUNRISE_PINK(
         id = "SUNRISE_PINK",
-        displayName = "Sunrise Pink",
+        displayName = "Merah Muda Pagi",
         emoji = "🌅",
         timeRangeLabel = "Pagi (05:00 - 10:59)",
         heroGradient = listOf(Color(0xFFEC4899), Color(0xFFFB7185), Color(0xFFF59E0B)),
@@ -34,7 +34,7 @@ enum class TimeOfDayPastelPhase(
     ),
     FRESH_MINT(
         id = "FRESH_MINT",
-        displayName = "Fresh Mint",
+        displayName = "Hijau Segar Siang",
         emoji = "🌿",
         timeRangeLabel = "Siang (11:00 - 15:59)",
         heroGradient = listOf(Color(0xFF0D9488), Color(0xFF14B8A6), Color(0xFF38BDF8)),
@@ -43,7 +43,7 @@ enum class TimeOfDayPastelPhase(
     ),
     TWILIGHT_ROSE(
         id = "TWILIGHT_ROSE",
-        displayName = "Twilight Rose",
+        displayName = "Senja Lembut Sore",
         emoji = "🌇",
         timeRangeLabel = "Sore (16:00 - 18:59)",
         heroGradient = listOf(Color(0xFFDB2777), Color(0xFFA855F7), Color(0xFFF59E0B)),
@@ -52,7 +52,7 @@ enum class TimeOfDayPastelPhase(
     ),
     MOONLIGHT_LAVENDER(
         id = "MOONLIGHT_LAVENDER",
-        displayName = "Moonlight Lavender",
+        displayName = "Ungu Malam Tenang",
         emoji = "🌙",
         timeRangeLabel = "Malam (19:00 - 04:59)",
         heroGradient = listOf(Color(0xFF6D28D9), Color(0xFF8B5CF6), Color(0xFFDB2777)),
@@ -84,7 +84,7 @@ enum class AppThemePreset(
     AUTO_TIME_PASTEL(
         id = "AUTO_TIME_PASTEL",
         displayName = "Tema Otomatis",
-        subtitle = "Sunrise Pink di pagi hari & Moonlight Lavender di malam hari",
+        subtitle = "Otomatis berganti warna cerah di pagi hari & lembut di malam hari",
         previewPrimary = SunrisePinkPrimary,
         previewSecondary = PastelMintVibrant,
         previewTertiary = MoonlightLavenderPrimary,
@@ -94,8 +94,8 @@ enum class AppThemePreset(
     ),
     CUTE_PASTEL(
         id = "CUTE_PASTEL",
-        displayName = "Cute Pastel",
-        subtitle = "Soft pink, mint & lavender yang ceria",
+        displayName = "Pastel Lembut",
+        subtitle = "Merah muda, hijau lembut & ungu muda yang nyaman di mata",
         previewPrimary = PastelPinkVibrant,
         previewSecondary = PastelMintVibrant,
         previewTertiary = PastelLavenderPrimary,
@@ -128,7 +128,7 @@ enum class AppThemePreset(
     COLORFUL_POP(
         id = "COLORFUL_POP",
         displayName = "Warna-Warni",
-        subtitle = "Ungu ceria, toscha & magenta",
+        subtitle = "Ungu ceria, merah muda & biru toska",
         previewPrimary = Color(0xFF7C3AED),
         previewSecondary = Color(0xFFEC4899),
         previewTertiary = Color(0xFF06B6D4),

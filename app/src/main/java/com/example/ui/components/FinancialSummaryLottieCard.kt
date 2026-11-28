@@ -28,9 +28,9 @@ import com.example.ui.theme.*
 import kotlin.math.roundToInt
 
 private val SUMMARY_CHEERS = listOf(
-    "Ketuk Zawa untuk semangat cuan! ✨",
+    "Ketuk Zawa untuk penyemangat hari ini! ✨",
     "Hebat! Setiap catatan bikin dompet makin sehat 🪙",
-    "Anggaran terjaga, hati pun ikut happy 💖",
+    "Anggaran terjaga, hati pun ikut senang 💖",
     "Pelan-pelan nabung, impian pasti tercapai 🌟"
 )
 
@@ -161,7 +161,7 @@ fun FinancialSummaryLottieCard(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Skor Sehat",
+                                text = "Nilai Sehat",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = Color.White
                             )
@@ -185,7 +185,7 @@ fun FinancialSummaryLottieCard(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "TOTAL KEKAYAAN BERSIH (NET WORTH)",
+                            text = "TOTAL HARTA BERSIH",
                             style = MaterialTheme.typography.labelMedium,
                             color = Gold100,
                             maxLines = 1,
@@ -200,7 +200,7 @@ fun FinancialSummaryLottieCard(
                             modifier = Modifier.testTag("hero_net_worth")
                         )
                         Text(
-                            text = "Kas & aset dikurangi total utang",
+                            text = "Total uang & harta dikurangi utang",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.82f)
                         )
@@ -309,7 +309,7 @@ fun FinancialSummaryLottieCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     SummaryMiniMetric(
-                        label = "Uang + Aset",
+                        label = "Uang + Harta",
                         value = CurrencyFormatter.formatCompactIdr(totalLiquidAndInvestments, stealthMode),
                         valueColor = Color.White
                     )

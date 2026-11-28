@@ -1,15 +1,16 @@
 package com.example.ui.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -33,6 +34,7 @@ import com.example.R
 import com.example.data.local.*
 import com.example.data.sync.SyncVisualStatus
 import com.example.domain.CurrencyFormatter
+import com.example.domain.WorkspaceInviteHelper
 import com.example.ui.MainUiState
 import com.example.ui.theme.*
 
@@ -76,10 +78,11 @@ fun NusaKasTopBar(
                 ) {
                     SvgLogo(
                         resId = if (state.isSharedWorkspace) R.drawable.ic_logo_workspace_shared else R.drawable.ic_logo_nusakas,
-                        contentDescription = "Ruang Kerja",
+                        contentDescription = "Ruang Keuangan",
                         size = 28.dp
                     )
                     Spacer(Modifier.width(8.dp))
+                    val activePurpose = state.activeWorkspace?.let { state.settings.workspacePurposes[it.id] }
                     Column {
                         Text(
                             text = state.activeWorkspace?.name ?: "Keuangan Pribadi",
@@ -88,9 +91,11 @@ fun NusaKasTopBar(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = if (state.isSharedWorkspace) {
-                                "${state.activeMember?.name ?: ""} • ${state.activeMember?.role ?: "OWNER"}"
-                            } else "100% Lokal & Privat",
+                            text = when {
+                                state.isSharedWorkspace -> "${activePurpose ?: "Bersama"} • ${CurrencyFormatter.memberRoleLabel(state.activeMember?.role ?: "OWNER")}"
+                                !activePurpose.isNullOrBlank() -> "$activePurpose • Di HP"
+                                else -> "Tersimpan di HP & Pribadi"
+                            },
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
@@ -99,7 +104,7 @@ fun NusaKasTopBar(
                     Spacer(Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = "Ganti Workspace",
+                        contentDescription = "Ganti Ruang Keuangan",
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -114,19 +119,19 @@ fun NusaKasTopBar(
                     SyncVisualStatus.ONLINE_SYNCED -> listOf(
                         IncomeGreenSoft,
                         IncomeGreen,
-                        "Online",
+                        "Terhubung",
                         PastelPlumText
                     )
                     SyncVisualStatus.SYNCING -> listOf(
                         WarningAmberSoft,
                         WarningAmber,
-                        "Sync (${state.pendingSyncCount})",
+                        "Menyimpan (${state.pendingSyncCount})",
                         PastelPlumText
                     )
                     SyncVisualStatus.OFFLINE_LOCAL -> listOf(
                         MaterialTheme.colorScheme.surfaceVariant,
                         MaterialTheme.colorScheme.onSurfaceVariant,
-                        "Offline",
+                        "Tanpa Internet",
                         MaterialTheme.colorScheme.onSurface
                     )
                 }
@@ -183,15 +188,27 @@ fun NusaKasTopBar(
                     )
                 }
 
-                // Cloud & Security Gear
+                // User Profile, Cloud Sync & Security Pill
+                val userName = state.currentUser?.name ?: state.activeMember?.name ?: "Profil"
+                val avatarColor = Color(state.currentUser?.avatarColorHex ?: 0xFF065F46L)
+                val initials = userName.trim().split(" ").filter { it.isNotBlank() }.let { parts ->
+                    when {
+                        parts.isEmpty() -> "DZ"
+                        parts.size == 1 -> parts[0].take(2).uppercase()
+                        else -> "${parts[0].first()}${parts[1].first()}".uppercase()
+                    }
+                }
                 IconButton(
                     onClick = onOpenSyncSecurityModal,
                     modifier = Modifier.testTag("open_settings_button")
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Shield,
-                        contentDescription = "Keamanan & Cloud Sync",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    UserAvatar(
+                        initials = initials,
+                        avatarColorHex = state.currentUser?.avatarColorHex ?: 0xFF065F46L,
+                        photoPath = state.settings.profilePhotoPath,
+                        size = 34.dp,
+                        textStyle = MaterialTheme.typography.labelMedium,
+                        contentDescription = "Buka Profil & Keamanan"
                     )
                 }
             }
@@ -199,12 +216,28 @@ fun NusaKasTopBar(
     }
 }
 
+private data class WorkspacePurposeOption(
+    val label: String,
+    val suggestedName: String,
+    val defaultType: String
+)
+
+private val WORKSPACE_PURPOSE_OPTIONS = listOf(
+    WorkspacePurposeOption("Keuangan Pribadi", "Keuangan Pribadi", WorkspaceTypes.PERSONAL),
+    WorkspacePurposeOption("Keuangan Keluarga", "Keuangan Keluarga", WorkspaceTypes.SHARED),
+    WorkspacePurposeOption("Usaha / Bisnis", "Kas Usaha", WorkspaceTypes.PERSONAL),
+    WorkspacePurposeOption("Tabungan Nikah", "Tabungan Nikah", WorkspaceTypes.SHARED),
+    WorkspacePurposeOption("Liburan & Travel", "Dana Liburan", WorkspaceTypes.SHARED),
+    WorkspacePurposeOption("Kos / Kontrakan", "Uang Kos", WorkspaceTypes.SHARED),
+    WorkspacePurposeOption("Proyek / Event", "Kas Proyek", WorkspaceTypes.SHARED)
+)
+
 @Composable
 fun WorkspaceCollaborationDialog(
     state: MainUiState,
     onDismiss: () -> Unit,
     onSwitchWorkspace: (WorkspaceEntity) -> Unit,
-    onCreateWorkspace: (name: String, type: String) -> Unit,
+    onCreateWorkspace: (name: String, type: String, purpose: String) -> Unit,
     onJoinWorkspace: (code: String) -> Unit,
     onInviteMember: (name: String, email: String, role: String) -> Unit,
     onChangeRole: (memberId: String, role: String) -> Unit,
@@ -236,9 +269,9 @@ fun WorkspaceCollaborationDialog(
                         SvgLogo(resId = R.drawable.ic_logo_workspace_shared, contentDescription = null, size = 38.dp)
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("Multi-Workspace & Kolaborasi", style = MaterialTheme.typography.titleLarge)
+                            Text("Ruang Keuangan & Bersama", style = MaterialTheme.typography.titleLarge)
                             Text(
-                                "Pribadi 100% lokal atau Keuangan Bersama",
+                                "Pisahkan uang pribadi, keluarga, usaha, atau keperluan lain",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -251,7 +284,7 @@ fun WorkspaceCollaborationDialog(
 
                 Spacer(Modifier.height(10.dp))
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    listOf("Ruang Kerja", "Anggota", "Buat/Gabung").forEachIndexed { idx, label ->
+                    listOf("Daftar Ruang", "Anggota & Undang", "Buat / Gabung").forEachIndexed { idx, label ->
                         SegmentedButton(
                             selected = tab == idx,
                             onClick = { tab = idx },
@@ -265,50 +298,66 @@ fun WorkspaceCollaborationDialog(
 
                 when (tab) {
                     0 -> {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            items(state.workspaces) { ws ->
-                                val isSelected = ws.id == state.activeWorkspace?.id
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("workspace_item_${ws.id}")
-                                        .clickable {
-                                            onSwitchWorkspace(ws)
-                                            onDismiss()
-                                        }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                items(state.workspaces) { ws ->
+                                    val isSelected = ws.id == state.activeWorkspace?.id
+                                    val purpose = state.settings.workspacePurposes[ws.id]
+                                        ?: if (ws.type == WorkspaceTypes.SHARED) "Keuangan Bersama" else "Keuangan Pribadi"
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("workspace_item_${ws.id}")
+                                            .clickable {
+                                                onSwitchWorkspace(ws)
+                                                onDismiss()
+                                            }
                                     ) {
-                                        SvgLogo(
-                                            resId = if (ws.type == WorkspaceTypes.SHARED) R.drawable.ic_logo_workspace_shared else R.drawable.ic_logo_workspace_personal,
-                                            contentDescription = ws.type,
-                                            size = 38.dp
-                                        )
-                                        Spacer(Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(ws.name, style = MaterialTheme.typography.titleMedium)
-                                            Text(
-                                                text = if (ws.type == WorkspaceTypes.SHARED) {
-                                                    "Bersama • Kode Undangan: ${ws.inviteCode}"
-                                                } else "Pribadi • 100% Lokal di Perangkat",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        Row(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            SvgLogo(
+                                                resId = if (ws.type == WorkspaceTypes.SHARED) R.drawable.ic_logo_workspace_shared else R.drawable.ic_logo_workspace_personal,
+                                                contentDescription = ws.type,
+                                                size = 38.dp
                                             )
-                                        }
-                                        if (isSelected) {
-                                            Icon(Icons.Filled.CheckCircle, contentDescription = "Aktif", tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(ws.name, style = MaterialTheme.typography.titleMedium)
+                                                Text(
+                                                    text = if (ws.type == WorkspaceTypes.SHARED) {
+                                                        "$purpose • Bersama • Kode: ${ws.inviteCode}"
+                                                    } else "$purpose • Pribadi (Di HP)",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(Icons.Filled.CheckCircle, contentDescription = "Aktif", tint = MaterialTheme.colorScheme.primary)
+                                            }
                                         }
                                     }
                                 }
+                            }
+
+                            Button(
+                                onClick = { tab = 2 },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("add_workspace_from_list_button")
+                            ) {
+                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Tambah Ruang Keuangan Baru")
                             }
                         }
                     }
@@ -317,39 +366,127 @@ fun WorkspaceCollaborationDialog(
                         val activeWs = state.activeWorkspace
                         var newName by remember { mutableStateOf("") }
                         var newEmail by remember { mutableStateOf("") }
+                        var newPhone by remember { mutableStateOf("") }
                         var newRole by remember { mutableStateOf(MemberRoles.EDITOR) }
 
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
+                            if (activeWs != null && activeWs.type == WorkspaceTypes.PERSONAL) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                "Hubungi & Undang Orang Lain",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                "Catatan ini masih mode Pribadi. Buat Ruang Keuangan Bersama agar bisa mengajak keluarga atau teman lewat WhatsApp, Email, atau Tautan.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.88f)
+                                            )
+                                            Button(
+                                                onClick = { tab = 2 },
+                                                modifier = Modifier.fillMaxWidth().testTag("switch_to_create_shared_workspace")
+                                            ) {
+                                                Icon(Icons.Outlined.GroupAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("Buat Ruang Bersama & Undang")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (activeWs != null && activeWs.type == WorkspaceTypes.SHARED) {
                                 item {
                                     Card(
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                                     ) {
-                                        Column(modifier = Modifier.padding(14.dp)) {
-                                            Text("Kode & Tautan Undangan", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                            Spacer(Modifier.height(6.dp))
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Text(
+                                                "Kode & Hubungi via Undangan",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Column {
-                                                    Text(activeWs.inviteCode, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
-                                                    Text(activeWs.inviteLink, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        activeWs.inviteCode,
+                                                        style = MaterialTheme.typography.headlineSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        activeWs.inviteLink,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                 }
                                                 FilledTonalButton(
                                                     onClick = {
-                                                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                        cm.setPrimaryClip(ClipData.newPlainText("Invite", "${activeWs.inviteCode} (${activeWs.inviteLink})"))
-                                                        onNotify("Kode undangan ${activeWs.inviteCode} disalin!")
-                                                    }
+                                                        WorkspaceInviteHelper.copyInvite(context, activeWs, onNotify)
+                                                    },
+                                                    modifier = Modifier.testTag("copy_workspace_invite_button")
                                                 ) {
                                                     Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
                                                     Spacer(Modifier.width(4.dp))
                                                     Text("Salin")
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = {
+                                                        WorkspaceInviteHelper.shareInvite(context, activeWs, onFeedback = onNotify)
+                                                    },
+                                                    modifier = Modifier.weight(1f).testTag("share_workspace_invite_button")
+                                                ) {
+                                                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Bagikan", maxLines = 1)
+                                                }
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        WorkspaceInviteHelper.contactViaWhatsApp(context, activeWs, onFeedback = onNotify)
+                                                    },
+                                                    modifier = Modifier.weight(1f).testTag("whatsapp_workspace_invite_button")
+                                                ) {
+                                                    Icon(Icons.Outlined.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("WhatsApp", maxLines = 1)
+                                                }
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        WorkspaceInviteHelper.contactViaEmail(context, activeWs, onFeedback = onNotify)
+                                                    },
+                                                    modifier = Modifier.weight(1f).testTag("email_workspace_invite_button")
+                                                ) {
+                                                    Icon(Icons.Outlined.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Email", maxLines = 1)
                                                 }
                                             }
                                         }
@@ -359,7 +496,7 @@ fun WorkspaceCollaborationDialog(
 
                             item {
                                 Text(
-                                    "Anggota & Kontrol Peran (Ketuk 'Pakai' untuk simulasi RBAC)",
+                                    "Daftar Anggota & Hak Akses (Ketuk 'Pakai' untuk coba peran)",
                                     style = MaterialTheme.typography.labelLarge
                                 )
                             }
@@ -373,7 +510,7 @@ fun WorkspaceCollaborationDialog(
                                         contentColor = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                     )
                                 ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -407,22 +544,75 @@ fun WorkspaceCollaborationDialog(
                                             }
                                         }
                                         if (state.isOwner && !isMe) {
-                                            Spacer(Modifier.height(6.dp))
                                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 listOf(MemberRoles.OWNER, MemberRoles.EDITOR, MemberRoles.VIEWER).forEach { r ->
                                                     FilterChip(
                                                         selected = m.role == r,
                                                         onClick = { onChangeRole(m.id, r) },
-                                                        label = { Text(r, style = MaterialTheme.typography.labelMedium) }
+                                                        label = { Text(CurrencyFormatter.memberRoleLabel(r), style = MaterialTheme.typography.labelMedium) }
                                                     )
                                                 }
                                             }
                                         } else {
                                             Text(
-                                                "Peran: ${m.role}",
+                                                "Peran: ${CurrencyFormatter.memberRoleLabel(m.role)}",
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
+                                        }
+
+                                        if (!isMe && activeWs != null && activeWs.type == WorkspaceTypes.SHARED) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        WorkspaceInviteHelper.contactViaWhatsApp(
+                                                            context = context,
+                                                            workspace = activeWs,
+                                                            targetName = m.name,
+                                                            onFeedback = onNotify
+                                                        )
+                                                    },
+                                                    modifier = Modifier.weight(1f),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Icon(Icons.Outlined.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("WhatsApp", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                                }
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        WorkspaceInviteHelper.contactViaEmail(
+                                                            context = context,
+                                                            workspace = activeWs,
+                                                            recipientEmail = m.email,
+                                                            targetName = m.name,
+                                                            onFeedback = onNotify
+                                                        )
+                                                    },
+                                                    modifier = Modifier.weight(1f),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Icon(Icons.Outlined.Email, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Email", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        WorkspaceInviteHelper.shareInvite(
+                                                            context = context,
+                                                            workspace = activeWs,
+                                                            targetName = m.name,
+                                                            onFeedback = onNotify
+                                                        )
+                                                    },
+                                                    modifier = Modifier.size(48.dp)
+                                                ) {
+                                                    Icon(Icons.Outlined.Share, contentDescription = "Bagikan Undangan")
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -431,22 +621,34 @@ fun WorkspaceCollaborationDialog(
                             if (state.isOwner && activeWs?.type == WorkspaceTypes.SHARED) {
                                 item {
                                     HorizontalDivider(Modifier.padding(vertical = 6.dp))
-                                    Text("Tambah Anggota Baru", style = MaterialTheme.typography.titleSmall)
+                                    Text("Tambah & Hubungi Anggota Baru", style = MaterialTheme.typography.titleSmall)
                                     Spacer(Modifier.height(8.dp))
                                     OutlinedTextField(
                                         value = newName,
                                         onValueChange = { newName = it },
                                         label = { Text("Nama Anggota") },
+                                        placeholder = { Text("mis. Najwa Nahdatul Huda") },
                                         singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth().testTag("invite_member_name_input")
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     OutlinedTextField(
                                         value = newEmail,
                                         onValueChange = { newEmail = it },
-                                        label = { Text("Email / ID") },
+                                        label = { Text("Email (opsional)") },
+                                        placeholder = { Text("mis. najwa@email.com") },
                                         singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth().testTag("invite_member_email_input")
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedTextField(
+                                        value = newPhone,
+                                        onValueChange = { newPhone = it },
+                                        label = { Text("No. WhatsApp / HP (opsional)") },
+                                        placeholder = { Text("mis. 081234567890") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth().testTag("invite_member_phone_input")
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -454,22 +656,90 @@ fun WorkspaceCollaborationDialog(
                                             FilterChip(
                                                 selected = newRole == r,
                                                 onClick = { newRole = r },
-                                                label = { Text(r) }
+                                                label = { Text(CurrencyFormatter.memberRoleLabel(r)) }
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(6.dp))
+                                    Spacer(Modifier.height(8.dp))
                                     Button(
                                         onClick = {
                                             if (newName.isNotBlank()) {
-                                                onInviteMember(newName, newEmail.ifBlank { "${newName.lowercase()}@nusakas.id" }, newRole)
+                                                onInviteMember(
+                                                    newName.trim(),
+                                                    newEmail.trim().ifBlank { "${newName.trim().lowercase().replace(" ", ".")}@nusakas.id" },
+                                                    newRole
+                                                )
                                                 newName = ""
                                                 newEmail = ""
+                                                newPhone = ""
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth()
+                                        enabled = newName.isNotBlank(),
+                                        modifier = Modifier.fillMaxWidth().testTag("invite_member_submit_button")
                                     ) {
+                                        Icon(Icons.Outlined.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
                                         Text("Undang Anggota")
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val targetName = newName.trim().takeIf { it.isNotBlank() }
+                                                if (targetName != null) {
+                                                    onInviteMember(
+                                                        targetName,
+                                                        newEmail.trim().ifBlank { "${targetName.lowercase().replace(" ", ".")}@nusakas.id" },
+                                                        newRole
+                                                    )
+                                                }
+                                                WorkspaceInviteHelper.contactViaWhatsApp(
+                                                    context = context,
+                                                    workspace = activeWs,
+                                                    phoneNumber = newPhone,
+                                                    targetName = targetName,
+                                                    onFeedback = onNotify
+                                                )
+                                                newName = ""
+                                                newEmail = ""
+                                                newPhone = ""
+                                            },
+                                            modifier = Modifier.weight(1f).testTag("invite_and_whatsapp_button")
+                                        ) {
+                                            Icon(Icons.Outlined.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Undang & WA", maxLines = 1)
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                val targetName = newName.trim().takeIf { it.isNotBlank() }
+                                                if (targetName != null) {
+                                                    onInviteMember(
+                                                        targetName,
+                                                        newEmail.trim().ifBlank { "${targetName.lowercase().replace(" ", ".")}@nusakas.id" },
+                                                        newRole
+                                                    )
+                                                }
+                                                WorkspaceInviteHelper.contactViaEmail(
+                                                    context = context,
+                                                    workspace = activeWs,
+                                                    recipientEmail = newEmail,
+                                                    targetName = targetName,
+                                                    onFeedback = onNotify
+                                                )
+                                                newName = ""
+                                                newEmail = ""
+                                                newPhone = ""
+                                            },
+                                            modifier = Modifier.weight(1f).testTag("invite_and_email_button")
+                                        ) {
+                                            Icon(Icons.Outlined.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Undang & Email", maxLines = 1)
+                                        }
                                     }
                                 }
                             }
@@ -478,47 +748,85 @@ fun WorkspaceCollaborationDialog(
 
                     else -> {
                         var wsName by remember { mutableStateOf("") }
-                        var wsType by remember { mutableStateOf(WorkspaceTypes.SHARED) }
+                        var wsPurpose by remember { mutableStateOf("Usaha / Bisnis") }
+                        var wsType by remember { mutableStateOf(WorkspaceTypes.PERSONAL) }
                         var joinCode by remember { mutableStateOf("") }
 
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.weight(1f)
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
                         ) {
-                            Text("Buat Workspace Baru", style = MaterialTheme.typography.titleMedium)
+                            Text("Buat Ruang Keuangan Baru", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Pilih keperluan di bawah atau tulis sendiri sesuai kebutuhan:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(WORKSPACE_PURPOSE_OPTIONS) { opt ->
+                                    FilterChip(
+                                        selected = wsPurpose.equals(opt.label, ignoreCase = true),
+                                        onClick = {
+                                            wsPurpose = opt.label
+                                            wsType = opt.defaultType
+                                            if (wsName.isBlank() || WORKSPACE_PURPOSE_OPTIONS.any { it.suggestedName == wsName }) {
+                                                wsName = opt.suggestedName
+                                            }
+                                        },
+                                        label = { Text(opt.label) }
+                                    )
+                                }
+                            }
+                            OutlinedTextField(
+                                value = wsPurpose,
+                                onValueChange = { wsPurpose = it },
+                                label = { Text("Keperluan Ruang Keuangan (Bisa Tulis Sendiri)") },
+                                placeholder = { Text("mis. Kas Toko, Tabungan Sekolah, Patungan RT") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().testTag("create_workspace_purpose_input")
+                            )
                             OutlinedTextField(
                                 value = wsName,
                                 onValueChange = { wsName = it },
-                                label = { Text("Nama (mis. Patungan Liburan, Kas Usaha)") },
+                                label = { Text("Nama Ruang Keuangan") },
+                                placeholder = { Text("mis. Kas Usaha Kopi, Dana Nikah") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth().testTag("create_workspace_name_input")
                             )
+                            Text("Pilihan Pemakaian", style = MaterialTheme.typography.labelLarge)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = wsType == WorkspaceTypes.SHARED,
-                                    onClick = { wsType = WorkspaceTypes.SHARED },
-                                    label = { Text("Workspace Bersama") }
-                                )
                                 FilterChip(
                                     selected = wsType == WorkspaceTypes.PERSONAL,
                                     onClick = { wsType = WorkspaceTypes.PERSONAL },
-                                    label = { Text("Pribadi (100% Lokal)") }
+                                    label = { Text("Sendiri (Di HP)") }
+                                )
+                                FilterChip(
+                                    selected = wsType == WorkspaceTypes.SHARED,
+                                    onClick = { wsType = WorkspaceTypes.SHARED },
+                                    label = { Text("Bersama (Bisa Undang)") }
                                 )
                             }
                             Button(
                                 onClick = {
                                     if (wsName.isNotBlank()) {
-                                        onCreateWorkspace(wsName, wsType)
+                                        onCreateWorkspace(
+                                            wsName.trim(),
+                                            wsType,
+                                            wsPurpose.trim().ifBlank { wsName.trim() }
+                                        )
                                         onDismiss()
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth().testTag("create_workspace_submit")
+                                enabled = wsName.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("create_workspace_submit")
                             ) {
-                                Text("Buat Workspace")
+                                Text("Tambah Ruang Keuangan")
                             }
 
                             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                            Text("Gabung Workspace dengan Kode", style = MaterialTheme.typography.titleMedium)
+                            Text("Gabung Ruang Keuangan dengan Kode", style = MaterialTheme.typography.titleMedium)
                             OutlinedTextField(
                                 value = joinCode,
                                 onValueChange = { joinCode = it.uppercase() },
@@ -533,259 +841,13 @@ fun WorkspaceCollaborationDialog(
                                         onDismiss()
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth().testTag("join_workspace_submit")
+                                enabled = joinCode.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("join_workspace_submit")
                             ) {
                                 Text("Gabung Sekarang")
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CloudSyncAndSecurityDialog(
-    state: MainUiState,
-    onDismiss: () -> Unit,
-    onToggleOfflineSim: () -> Unit,
-    onSaveCloudConfig: (provider: String, url: String, apiKey: String, autoSim: Boolean) -> Unit,
-    onTriggerSync: () -> Unit,
-    onEnablePin: (String) -> Unit,
-    onDisablePin: () -> Unit,
-    onLockNow: () -> Unit
-) {
-    var provider by remember(state.settings.cloudProvider) { mutableStateOf(state.settings.cloudProvider) }
-    var url by remember(state.settings.cloudUrl) { mutableStateOf(state.settings.cloudUrl) }
-    var apiKey by remember(state.settings.cloudApiKey) { mutableStateOf(state.settings.cloudApiKey) }
-    var autoSim by remember(state.settings.autoSyncSimulation) { mutableStateOf(state.settings.autoSyncSimulation) }
-    var pinInput by remember { mutableStateOf("") }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .widthIn(max = 560.dp)
-                .fillMaxHeight(0.88f),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            SvgLogo(resId = R.drawable.ic_logo_cloud_sync, contentDescription = null, size = 38.dp)
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text("Cloud Sync, Audit & Keamanan", style = MaterialTheme.typography.titleLarge)
-                                Text(
-                                    "Hybrid Local-First • Resolusi Konflik Last-Write-Wins UTC",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Filled.Close, contentDescription = "Tutup")
-                        }
-                    }
-                }
-
-                // Offline Simulation & Sync Status
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Simulasi Mode Offline", style = MaterialTheme.typography.titleSmall)
-                                    Text(
-                                        "Uji pencatatan lokal ke sync_queue tanpa koneksi",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Switch(
-                                    checked = state.settings.simulatedOffline,
-                                    onCheckedChange = { onToggleOfflineSim() },
-                                    modifier = Modifier.testTag("simulated_offline_switch")
-                                )
-                            }
-                            Text(
-                                "Antrean Sync Pending: ${state.pendingSyncCount} item",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            if (state.settings.lastSyncTimestamp > 0L) {
-                                Text(
-                                    "Sinkronisasi terakhir: ${CurrencyFormatter.formatRelativeDateTime(state.settings.lastSyncTimestamp)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Button(
-                                onClick = onTriggerSync,
-                                modifier = Modifier.fillMaxWidth().testTag("manual_sync_button")
-                            ) {
-                                Icon(Icons.Filled.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Sinkronkan Sekarang")
-                            }
-                        }
-                    }
-                }
-
-                // Cloud Sync Config
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Adaptor Cloud Sync (Supabase / Firebase)", style = MaterialTheme.typography.titleSmall)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("SUPABASE", "FIREBASE").forEach { p ->
-                                    FilterChip(
-                                        selected = provider == p,
-                                        onClick = { provider = p },
-                                        label = { Text(p) }
-                                    )
-                                }
-                            }
-                            OutlinedTextField(
-                                value = url,
-                                onValueChange = { url = it },
-                                label = { Text("Project URL (opsional)") },
-                                placeholder = { Text("https://xxx.supabase.co") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = apiKey,
-                                onValueChange = { apiKey = it },
-                                label = { Text("Anon Key / API Key (opsional)") },
-                                singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Mode Simulasi Sync Otomatis", style = MaterialTheme.typography.bodyMedium)
-                                Switch(checked = autoSim, onCheckedChange = { autoSim = it })
-                            }
-                            FilledTonalButton(
-                                onClick = { onSaveCloudConfig(provider, url, apiKey, autoSim) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Simpan Pengaturan Cloud")
-                            }
-                        }
-                    }
-                }
-
-                // PIN 6 Digit Lock
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                SvgLogo(resId = R.drawable.ic_logo_debt_shield, contentDescription = null, size = 32.dp)
-                                Text("Keamanan Kunci PIN 6-Digit Lokal", style = MaterialTheme.typography.titleSmall)
-                            }
-                            Text(
-                                text = if (state.settings.isPinEnabled) "Status: PIN Aktif" else "Status: Belum diaktifkan",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (state.settings.isPinEnabled) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            OutlinedTextField(
-                                value = pinInput,
-                                onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) pinInput = it },
-                                label = { Text(if (state.settings.isPinEnabled) "Ubah PIN (6 digit)" else "Buat PIN Baru (6 digit)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("pin_setup_input")
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = {
-                                        if (pinInput.length == 6) {
-                                            onEnablePin(pinInput)
-                                            pinInput = ""
-                                        }
-                                    },
-                                    enabled = pinInput.length == 6,
-                                    modifier = Modifier.weight(1f).testTag("save_pin_button")
-                                ) {
-                                    Text("Simpan PIN")
-                                }
-                                OutlinedButton(
-                                    onClick = {
-                                        onDismiss()
-                                        onLockNow()
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(if (state.settings.isPinEnabled) "Kunci Layar" else "Layar Masuk")
-                                }
-                                if (state.settings.isPinEnabled) {
-                                    TextButton(onClick = onDisablePin) {
-                                        Text("Hapus")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Audit Logs
-                item {
-                    Text("Jejak Audit Aktivitas Anggota", style = MaterialTheme.typography.titleSmall)
-                }
-                items(state.auditLogs.take(15)) { log ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("${log.actorName} • ${log.action}", style = MaterialTheme.typography.labelLarge)
-                            Text(log.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text(
-                            CurrencyFormatter.formatRelativeDateTime(log.createdAt),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }

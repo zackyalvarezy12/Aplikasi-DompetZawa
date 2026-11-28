@@ -1,0 +1,260 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Dompet Zawa user profile and security sync preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "Google account email" },
+        "avatarInitials": { "type": "string", "description": "2-char avatar initials" },
+        "avatarColorHex": { "type": "integer", "description": "ARGB color integer" },
+        "themePreset": { "type": "string", "description": "Selected theme preset key" },
+        "biometricEnabled": { "type": "boolean", "description": "Whether face/biometric unlock is enabled" },
+        "autoSalaryEnabled": { "type": "boolean", "description": "Whether monthly auto salary prompt is enabled" },
+        "monthlyBaseSalary": { "type": "integer", "description": "Monthly base salary in IDR" },
+        "salaryPaydayDay": { "type": "integer", "description": "Payday day of month 1..31" },
+        "salaryWorkingDays": { "type": "integer", "description": "Working days per month 1..31" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["userId", "displayName", "avatarInitials", "avatarColorHex", "createdAt", "updatedAt"]
+    },
+    "Workspace": {
+      "title": "Workspace",
+      "description": "Financial workspace container",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["PERSONAL", "SHARED"] },
+        "inviteCode": { "type": "string" },
+        "currency": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "type", "currency", "createdAt", "updatedAt"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "Cash, Bank, E-Wallet, Deposit, or Credit Card account",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["CASH", "BANK", "EWALLET", "CREDIT_CARD", "DEPOSIT", "INVESTMENT"] },
+        "balance": { "type": "integer" },
+        "creditLimit": { "type": "integer" },
+        "billingDay": { "type": "integer" },
+        "dueDay": { "type": "integer" },
+        "institutionName": { "type": "string" },
+        "colorHex": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "name", "type", "balance", "createdAt", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Income, expense, or transfer category",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["INCOME", "EXPENSE", "TRANSFER"] },
+        "iconKey": { "type": "string" },
+        "colorHex": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "name", "type", "iconKey", "createdAt", "updatedAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Income, expense, transfer, split, or refund transaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "type": { "type": "string", "enum": ["INCOME", "EXPENSE", "TRANSFER", "SPLIT", "REFUND"] },
+        "amount": { "type": "integer" },
+        "accountId": { "type": "string" },
+        "toAccountId": { "type": "string" },
+        "adminFee": { "type": "integer" },
+        "categoryId": { "type": "string" },
+        "title": { "type": "string" },
+        "note": { "type": "string" },
+        "tags": { "type": "string" },
+        "dateMillis": { "type": "integer" },
+        "createdByMemberId": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "type", "amount", "accountId", "categoryId", "title", "dateMillis", "createdByMemberId", "createdByName", "createdAt", "updatedAt"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly category budget allocation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "monthYear": { "type": "string" },
+        "limitAmount": { "type": "integer" },
+        "rolloverAmount": { "type": "integer" },
+        "rolloverEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "categoryId", "monthYear", "limitAmount", "rolloverAmount", "rolloverEnabled", "createdAt", "updatedAt"]
+    },
+    "RecurringRule": {
+      "title": "RecurringRule",
+      "description": "Monthly or periodic recurring bill schedule",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "title": { "type": "string" },
+        "amount": { "type": "integer" },
+        "type": { "type": "string", "enum": ["INCOME", "EXPENSE"] },
+        "accountId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"] },
+        "nextDueDateMillis": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "reminderEnabled": { "type": "boolean" },
+        "lastPaidDateMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "title", "amount", "type", "accountId", "categoryId", "frequency", "nextDueDateMillis", "active", "reminderEnabled", "createdAt", "updatedAt"]
+    },
+    "DebtLoan": {
+      "title": "DebtLoan",
+      "description": "Debt or receivable record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "kind": { "type": "string", "enum": ["DEBT", "LOAN"] },
+        "title": { "type": "string" },
+        "counterparty": { "type": "string" },
+        "principalAmount": { "type": "integer" },
+        "remainingAmount": { "type": "integer" },
+        "interestRateAnnual": { "type": "number" },
+        "minimumMonthlyPayment": { "type": "integer" },
+        "dueDateMillis": { "type": "integer" },
+        "paidOff": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "kind", "title", "principalAmount", "remainingAmount", "paidOff", "createdAt", "updatedAt"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "Savings goal and sinking fund",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "title": { "type": "string" },
+        "targetAmount": { "type": "integer" },
+        "currentAmount": { "type": "integer" },
+        "targetDateMillis": { "type": "integer" },
+        "monthlyContribution": { "type": "integer" },
+        "iconKey": { "type": "string" },
+        "contributorSummary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "title", "targetAmount", "currentAmount", "createdAt", "updatedAt"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "Physical asset or investment holding",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "assetClass": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitLabel": { "type": "string" },
+        "unitPrice": { "type": "integer" },
+        "currentValue": { "type": "integer" },
+        "purchaseValue": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "name", "assetClass", "quantity", "unitPrice", "currentValue", "purchaseValue", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Security and financial audit log entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "actorMemberId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "detail": { "type": "string" },
+        "eventTimeMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "workspaceId", "actorMemberId", "actorName", "action", "eventTimeMillis", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated user profile and preferences"
+    },
+    "/users/{userId}/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/Workspace" },
+      "description": "User financial workspaces"
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/Account" },
+      "description": "User wallets, bank accounts, and credit cards"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "User income/expense categories"
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "User financial transactions"
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/Budget" },
+      "description": "User monthly category budgets"
+    },
+    "/users/{userId}/recurring_rules/{ruleId}": {
+      "schema": { "$ref": "#/entities/RecurringRule" },
+      "description": "User recurring bill schedules and reminders"
+    },
+    "/users/{userId}/debts_loans/{debtId}": {
+      "schema": { "$ref": "#/entities/DebtLoan" },
+      "description": "User debts and loans"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/Goal" },
+      "description": "User savings goals"
+    },
+    "/users/{userId}/assets/{assetId}": {
+      "schema": { "$ref": "#/entities/Asset" },
+      "description": "User assets and investments"
+    },
+    "/users/{userId}/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only user security and financial audit trail"
+    }
+  }
+}

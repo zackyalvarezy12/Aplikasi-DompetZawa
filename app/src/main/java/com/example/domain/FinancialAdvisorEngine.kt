@@ -96,10 +96,10 @@ object FinancialAdvisorEngine {
         val finalScore = score.coerceIn(0, 100)
 
         val gradeLabel = when {
-            finalScore >= 80 -> "Sangat Sehat (Prima)"
+            finalScore >= 80 -> "Sangat Sehat"
             finalScore >= 65 -> "Sehat & Terkendali"
-            finalScore >= 45 -> "Perlu Optimasi"
-            else -> "Zona Waspada"
+            finalScore >= 45 -> "Perlu Diperbaiki"
+            else -> "Perlu Perhatian"
         }
 
         val insights = mutableListOf<AdvisorInsight>()
@@ -109,16 +109,16 @@ object FinancialAdvisorEngine {
             if (savingRate >= 20.0) {
                 insights.add(
                     AdvisorInsight(
-                        title = "Rasio Tabungan Sehat (${savingRate.roundToInt()}%)",
-                        description = "Arus kas bulan ini menyisakan ${CurrencyFormatter.formatIdr(income30 - expense30)} untuk tabungan dan investasi.",
+                        title = "Tabungan Sehat (${savingRate.roundToInt()}%)",
+                        description = "Sisa uang bulan ini ${CurrencyFormatter.formatIdr(income30 - expense30)} aman untuk ditabung.",
                         severity = "GOOD"
                     )
                 )
             } else {
                 insights.add(
                     AdvisorInsight(
-                        title = "Rasio Tabungan Di Bawah Target 20%",
-                        description = "Saat ini saving rate Anda ${savingRate.roundToInt()}%. Alokasikan minimal 20% pemasukan di awal bulan (Pay Yourself First).",
+                        title = "Tabungan Di Bawah Target 20%",
+                        description = "Saat ini uang yang Anda tabung ${savingRate.roundToInt()}%. Usahakan sisihkan minimal 20% dari pemasukan di awal bulan.",
                         severity = "WARNING",
                         potentialMonthlySaving = (income30 * 0.20 - (income30 - expense30)).toLong().coerceAtLeast(0L)
                     )
@@ -142,8 +142,8 @@ object FinancialAdvisorEngine {
                 val catName = catById[catId]?.name ?: "Kategori"
                 insights.add(
                     AdvisorInsight(
-                        title = "Anomali Pengeluaran $catName (+$pctIncrease%)",
-                        description = "Pengeluaran $catName 7 hari terakhir (${CurrencyFormatter.formatIdr(sum7)}) melonjak $pctIncrease% di atas rata-rata mingguan.",
+                        title = "Pengeluaran $catName Melonjak (+$pctIncrease%)",
+                        description = "Belanja $catName 7 hari terakhir (${CurrencyFormatter.formatIdr(sum7)}) naik $pctIncrease% dibanding kebiasaan mingguan.",
                         severity = "WARNING",
                         potentialMonthlySaving = (sum7 - weeklyAvg.toLong()).coerceAtLeast(0L)
                     )
@@ -151,13 +151,13 @@ object FinancialAdvisorEngine {
             }
         }
 
-        // 3. Latte Factor insight
+        // 3. Small frequent discretionary expenses insight
         if (latteCount >= 3 && latteTotal >= 100_000L) {
             val yearlyImpact = latteTotal * 12
             insights.add(
                 AdvisorInsight(
-                    title = "Deteksi Latte Factor ($latteCount transaksi kecil)",
-                    description = "Pengeluaran mikro <= Rp 60rb berjumlah ${CurrencyFormatter.formatIdr(latteTotal)} bulan ini (setara ${CurrencyFormatter.formatCompactIdr(yearlyImpact)}/tahun). Mengurangi separuhnya dapat menambah dana investasi.",
+                    title = "Sering Jajan Kecil ($latteCount kali)",
+                    description = "Jajan atau belanja kecil di bawah Rp 60rb berjumlah ${CurrencyFormatter.formatIdr(latteTotal)} bulan ini (setara ${CurrencyFormatter.formatCompactIdr(yearlyImpact)}/tahun). Jika dikurangi setengahnya, uang tabungan bertambah banyak.",
                     severity = "TIP",
                     potentialMonthlySaving = latteTotal / 2
                 )
@@ -168,8 +168,8 @@ object FinancialAdvisorEngine {
         if (ccLimit > 0L && creditUtil > 30.0) {
             insights.add(
                 AdvisorInsight(
-                    title = "Rasio Pemakaian Kartu Kredit ${creditUtil.roundToInt()}% (>30%)",
-                    description = "Pemakaian kartu kredit melebihi batas aman 30%. Segera cicil agar skor kredit dan beban bunga tetap rendah.",
+                    title = "Pemakaian Kartu Kredit ${creditUtil.roundToInt()}% (Cukup Tinggi)",
+                    description = "Pemakaian kartu kredit melebihi batas aman 30%. Segera dicicil agar bunga tidak membengkak.",
                     severity = "CRITICAL"
                 )
             )
@@ -188,7 +188,7 @@ object FinancialAdvisorEngine {
                 val catName = catById[b.categoryId]?.name ?: "Kategori"
                 insights.add(
                     AdvisorInsight(
-                        title = "Anggaran $catName Overbudget",
+                        title = "Anggaran $catName Melebihi Batas",
                         description = "Terpakai ${CurrencyFormatter.formatIdr(spent)} dari batas ${CurrencyFormatter.formatIdr(effectiveLimit)}.",
                         severity = "CRITICAL"
                     )
@@ -201,7 +201,7 @@ object FinancialAdvisorEngine {
             insights.add(
                 AdvisorInsight(
                     title = "Dana Darurat Baru ${String.format("%.1f", emergencyMonths)} Bulan",
-                    description = "Idealnya dana likuid minimal 3-6 bulan pengeluaran rutin (${CurrencyFormatter.formatIdr(monthlyExpenseBaseline * 3)}).",
+                    description = "Idealnya uang tunai atau tabungan darurat cukup untuk 3–6 bulan kebutuhan (${CurrencyFormatter.formatIdr(monthlyExpenseBaseline * 3)}).",
                     severity = "WARNING"
                 )
             )

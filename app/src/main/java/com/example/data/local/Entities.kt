@@ -195,7 +195,9 @@ data class RecurringRuleEntity(
     val frequency: String, // DAILY | WEEKLY | MONTHLY | YEARLY
     val nextDueDateMillis: Long,
     val isActive: Boolean = true,
-    val lastPaidDateMillis: Long? = null
+    val lastPaidDateMillis: Long? = null,
+    val reminderEnabled: Boolean = true,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 // 10. debts_loans

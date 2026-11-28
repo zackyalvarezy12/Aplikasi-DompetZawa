@@ -108,7 +108,7 @@ fun AutoSalarySetupDialog(
                             Column {
                                 Text("Atur Gaji Otomatis", style = MaterialTheme.typography.titleLarge)
                                 Text(
-                                    "Pop-up hitung libur, sakit & izin muncul tiap tanggal gajian",
+                                    "Kotak hitung libur, sakit & izin muncul tiap tanggal gajian",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -132,7 +132,7 @@ fun AutoSalarySetupDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Aktifkan Pop-Up Tiap Tanggal Gajian", style = MaterialTheme.typography.titleSmall)
+                                Text("Munculkan Hitungan Tiap Tanggal Gajian", style = MaterialTheme.typography.titleSmall)
                                 Text(
                                     "Muncul otomatis saat tanggal gajian tiba",
                                     style = MaterialTheme.typography.bodySmall,
@@ -249,7 +249,7 @@ fun AutoSalarySetupDialog(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                "Setiap bulan pada tanggal $parsedPayday, pop-up akan otomatis muncul untuk mengisi jumlah libur, sakit & izin.",
+                                "Setiap bulan pada tanggal $parsedPayday, kotak hitungan otomatis muncul untuk mengisi jumlah libur, sakit & izin.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.88f)
                             )
@@ -419,7 +419,7 @@ fun MonthlyPayrollPopupDialog(
                 item {
                     LeaveStepperCard(
                         icon = Icons.Rounded.Weekend,
-                        title = "Libur / Cuti / Off",
+                        title = "Libur / Cuti",
                         subtitle = if (deductOffDays) {
                             "Potong ${CurrencyFormatter.formatIdr(result.dailyRate, stealthMode)} / hari"
                         } else {
